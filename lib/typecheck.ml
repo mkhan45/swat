@@ -17,10 +17,15 @@ let rec type_unify (type1 : tp) (type2 : tp) : (tp * tp) list =
   | _ -> raise (UnunificationException "failed to unify")
 
 and sum_list (xs : (label * tp) list) (ys : (label * tp) list) : (tp * tp) list =
-  match (xs, ys) with
-  | ((l1, t1)::xs', (l2, t2)::ys') when String.equal l1 l2 -> (type_unify t1 t2) @ (sum_list xs' ys')
-  | ([], []) -> []
-  | _ -> raise (UnunificationException "failed to sum list")
+  let xmap = Map.of_alist_exn (module String) xs in
+  let ymap = Map.of_alist_exn (module String) ys in 
+    if Map.length xmap <> Map.length ymap then
+      raise (UnunificationException "nonequal map list")
+    else
+      let keys = Map.keys xmap in
+        List.fold keys ~init:[] ~f:(fun acc label -> let x = Map.find_exn xmap label in
+                                                     let y = Map.find_exn ymap label in
+                                                       type_unify x y @ acc)
 
 let type_equals (type1 : tp) (type2 : tp) : bool =
   try
@@ -38,3 +43,18 @@ let type_equals (type1 : tp) (type2 : tp) : bool =
       go partial_substs substs |> const true
   with
   | UnunificationException _ -> false
+
+
+let rec type_subtype (type1 : tp) (type2 : tp) : bool =
+  match (type1, type2) with
+  | (One, One) -> true
+  | (Times (x1, x2), Times (y1, y2)) -> type_subtype x1 y1 && type_subtype x2 y2
+  | (Plus xs, Plus ys) ->
+    let xmap = Map.of_alist_exn (module String) xs in
+    let ymap = Map.of_alist_exn (module String) ys in 
+    let keys = Map.keys xmap in
+        List.for_all keys ~f:(fun label -> let x = Map.find_exn xmap label in
+                                            match Map.find ymap label with
+                                            | Some y -> type_subtype x y
+                                            | None -> false)
+  | _ -> false
