@@ -7,6 +7,9 @@ module Substs = struct
   include Map.Make(String)
 end
 
+let type_nat = Plus [("zero", One); ("succ", TpName "nat")]
+let type_unary = Plus [("zero", One); ("succ", TpName "unary")]
+let type_pos = Plus [("succ", TpName "nat")]
 
 let rec type_unify (type1 : tp) (type2 : tp) : (tp * tp) list =
   match (type1, type2) with
@@ -44,6 +47,8 @@ let type_equals (type1 : tp) (type2 : tp) : bool =
   with
   | UnunificationException _ -> false
 
+let%test _ = type_equals type_nat type_unary
+let%test _ = not (type_equals type_nat type_pos)
 
 let rec type_subtype (type1 : tp) (type2 : tp) : bool =
   match (type1, type2) with
@@ -57,4 +62,7 @@ let rec type_subtype (type1 : tp) (type2 : tp) : bool =
                                             match Map.find ymap label with
                                             | Some y -> type_subtype x y
                                             | None -> false)
+  | (TpName x, TpName y) -> String.equal x y
   | _ -> false
+
+let%test _ = type_subtype type_pos type_nat

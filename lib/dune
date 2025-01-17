@@ -1,8 +1,10 @@
 (library
  (name sax)
  (libraries core unix)
+ (inline_tests)
  (preprocess
-  (staged_pps ppx_import))
+  (staged_pps ppx_import ppx_inline_test ppx_deriving.show)
+  )
 )
 
 ; makes subdirs not be their own module/library
