@@ -1,0 +1,9 @@
+(library
+ (name sax)
+ (libraries core unix)
+ (preprocess
+  (staged_pps ppx_import))
+)
+
+; makes subdirs not be their own module/library
+(include_subdirs unqualified)

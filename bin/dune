@@ -1,0 +1,5 @@
+(executables
+ (names
+  sax)
+ (modes byte exe)
+ (libraries sax))

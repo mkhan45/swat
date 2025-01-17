@@ -1,0 +1,1 @@
+let () = Sax.Top.main ()
