@@ -11,24 +11,24 @@ let type_nat = Plus [("zero", One); ("succ", TpName "nat")]
 let type_unary = Plus [("zero", One); ("succ", TpName "unary")]
 let type_pos = Plus [("succ", TpName "nat")]
 
-let rec type_unify (type1 : tp) (type2 : tp) : (tp * tp) list =
+let rec type_unify (type1 : tp) (type2 : tp) : (string * tp) list =
   match (type1, type2) with
   | (One, One) -> []
   | (Times (x1, x2), Times (y1, y2)) -> (type_unify x1 x2) @ (type_unify y1 y2)
   | (Plus xs, Plus ys) -> sum_list xs ys 
-  | (TpName s, t) | (t, TpName s) -> [(TpName s, t)]
+  | (TpName v, t) | (t, TpName v) -> [(v, t)]
   | _ -> raise (UnunificationException "failed to unify")
 
-and sum_list (xs : (label * tp) list) (ys : (label * tp) list) : (tp * tp) list =
+and sum_list (xs : (label * tp) list) (ys : (label * tp) list) : (string * tp) list =
   let xmap = Map.of_alist_exn (module String) xs in
   let ymap = Map.of_alist_exn (module String) ys in 
-    if Map.length xmap <> Map.length ymap then
-      raise (UnunificationException "nonequal map list")
-    else
-      let keys = Map.keys xmap in
-        List.fold keys ~init:[] ~f:(fun acc label -> let x = Map.find_exn xmap label in
-                                                     let y = Map.find_exn ymap label in
-                                                       type_unify x y @ acc)
+  if Map.length xmap <> Map.length ymap then
+    raise (UnunificationException "nonequal map list")
+  else
+    let keys = Map.keys xmap in
+      List.fold keys ~init:[] ~f:(fun acc label -> let x = Map.find_exn xmap label in
+                                                   let y = Map.find_exn ymap label in
+                                                     type_unify x y @ acc)
 
 let type_equals (type1 : tp) (type2 : tp) : bool =
   try
@@ -37,11 +37,10 @@ let type_equals (type1 : tp) (type2 : tp) : bool =
     let rec go ts substs =
       match ts with
       | [] -> substs
-      | (TpName n, t)::ts' -> (match Map.find substs n with
-                              | None -> go ts' (Map.set substs ~key:n ~data:t)
+      | (v, t)::ts' -> (match Map.find substs v with
+                              | None -> go ts' (Map.set substs ~key:v ~data:t)
                               | Some t' -> let new_substs = type_unify t' t in
                                              go (new_substs @ ts') substs)
-      | _ -> raise (UnunificationException "false")
     in
       go partial_substs substs |> const true
   with
@@ -66,3 +65,4 @@ let rec type_subtype (type1 : tp) (type2 : tp) : bool =
   | _ -> false
 
 let%test _ = type_subtype type_pos type_nat
+let%test _ = not (type_subtype type_nat type_pos)

@@ -6,7 +6,7 @@ open Ast
 (* type comparison *)
 val type_equals: tp -> tp -> bool
 val type_subtype: tp -> tp -> bool
-val type_unify: tp -> tp -> (tp * tp) list
+val type_unify: tp -> tp -> (string * tp) list
 (*
 module type Hamburger = sig
   include Set.S with type Elt.t = varname
