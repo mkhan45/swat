@@ -115,5 +115,3 @@ fail proc double_write (d : 1) (a : 1) =
   cut z : 1
     write d ()
     id d a
-
-fail fail fail type failt = 1
