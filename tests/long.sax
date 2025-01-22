@@ -1,0 +1,971 @@
+proc long (d : 1) =
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  cut x : 1
+  write x ()
+  read x ()
+  write d ()
