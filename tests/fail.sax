@@ -115,3 +115,30 @@ fail proc double_write (d : 1) (a : 1) =
   cut z : 1
     write d ()
     id d a
+
+/* case fail */
+
+proc case (d : 1) (n : nat) =
+  read n {
+  | 'zero(u) => id d u
+  | 'succ(s) => call case d s
+  }
+
+fail proc case1 (d : 1) (n : nat) =
+  read n {
+  | 'zero(u) => id d u
+  }
+
+fail proc case2 (d : 1) (n : nat) =
+  read n {
+  | 'zero(u) => id d u
+  | 'succ(s) => call case2 d s
+  | 'zero(u) => id d u
+  }
+
+fail proc case3 (d : 1) (n : nat) =
+  read n {
+  | 'zero(u) => id d u
+  | 'succ(s) => call case3 d s
+  | 'fail(u) => id d u
+  }
