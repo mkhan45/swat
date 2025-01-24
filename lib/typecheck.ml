@@ -2,6 +2,7 @@ open Ast
 open Core
 
 exception UnunificationException of string
+exception Undefined
 
 module Substs = struct
   include Map.Make(String)
@@ -10,6 +11,7 @@ end
 let type_nat = Plus [("zero", One); ("succ", TpName "nat")]
 let type_unary = Plus [("zero", One); ("succ", TpName "unary")]
 let type_pos = Plus [("succ", TpName "nat")]
+
 
 let rec type_unify (type1 : tp) (type2 : tp) : (string * tp) list =
   match (type1, type2) with
@@ -66,3 +68,25 @@ let rec type_subtype (type1 : tp) (type2 : tp) : bool =
 
 let%test _ = type_subtype type_pos type_nat
 let%test _ = not (type_subtype type_nat type_pos)
+
+module Hamburger = struct
+  include Map.Make(String)
+
+  type tt = tp t
+
+  let smush (left : tt) (right : tt) : tt option = raise Undefined 
+    
+end
+
+let typecheck (env : Hamburger.tt) (com : cmd) (var, vartp) : Hamburger.tt option =
+  match com with
+  | Id (x, y) -> (match Map.find env x with
+                  | Some xtp -> (match Map.find env y with
+                                 | Some ytp -> if type_subtype ytp xtp
+                                                 then Some (Map.remove env y)
+                                                 else None
+                                 | None -> None)
+                  | None -> None)
+  |
+
+

@@ -1,16 +1,17 @@
 open Ast
 
-(* typechecker *)
-(* val typecheck : varname set -> cmd -> varname -> (varname set, string) result *)
-
 (* type comparison *)
 val type_equals: tp -> tp -> bool
 val type_subtype: tp -> tp -> bool
 val type_unify: tp -> tp -> (string * tp) list
-(*
-module type Hamburger = sig
-  include Set.S with type Elt.t = varname
 
+module Hamburger : sig
+  include Map.S
+
+  type tt = tp t
   (* functions *)
+  val smush : tt -> tt -> tt option
 end
-*)
+
+(* typechecker *)
+val typecheck : Hamburger.tt -> cmd -> (varname * tp) -> Hamburger.tt option
