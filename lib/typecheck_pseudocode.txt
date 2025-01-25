@@ -1,0 +1,83 @@
+
+
+typecheck env cmd (var, var_t) =
+  case cmd of
+    Id(dst, src) -> do
+      assert (dst == var)             -- destination must be `dst`
+      src_t <- lookup src env         -- `src` must be bound
+      assert (subtype src_t var_t)    -- A' <= A
+      return [(src, src_t)]
+
+    Write(dst, pat) -> do
+     -- TODO these ignores the `tp ::= TpName` case, which is just a type alias
+     -- to something which may be the correct structure (i.e. do a lookup
+     -- before)
+      assert (dst == var)             -- destination must be `dst`
+      case pat of
+        PairPat(x, y) -> do
+          let Times(a_t, b_t) = var_t         -- structure of dest of write and arg must match
+          x_t <- lookup x env                 -- `x` must be bound
+          y_t <- lookup y env                 -- `y` must be bound
+          assert (subtype x_t a_t)            -- A' <= A
+          assert (subtype y_t b_t)            -- B' <= B
+          out <- merge [(x, x_t)] [(y, y_t)]  -- discard duplicate identifiers
+          return out
+
+        UnitPat -> 
+          let One = var_t             -- structure of dest of write and arg must match
+          return []
+
+        InjPat(label, y) -> do
+          let Plus(cases) = var_t     -- structure of dest of write and arg must match
+          assert (label in cases)     -- k in L
+          y_t <- lookup k env         -- `y` must be bound
+          assert (subtype var_t y_t)  -- A'_k <= A_k
+          return [(y, y_t)]
+
+    Cut(x, x_t, P, Q) -> do
+      -- no matching restrictions on `delta`
+      xi_1 <- typecheck env P (x, x_t)                      -- typecheck left process
+      -- TODO assert that `x` is not shadowing destination
+      xi_2 <- typecheck (cons (x, x_t) env) Q (var, var_t)  -- typecheck right process
+      -- merge environments
+      new_2 <- subtract xi_2 x                              -- Xi_2 \ x
+      out <- merge xi_1 new_2                               -- Xi_1 ; (Xi_2 \ x)
+      return out
+
+    Read(src, branches) -> do
+      -- gather Xi from all branches
+      xis <- forM branches $ \(pat, Q) -> do
+        case pat of
+          PairPat(x, y) -> do
+            z_t <- lookup src env               -- z in Gamma
+            let Times(x_t, y_t) = z_t           -- z : A * B
+            xi <- typecheck (cons (x, x_t) (cons (y, y_t) env)) Q (var, var_t)  -- second judgement
+            out <- merge (subtract (subtract xi x) y) [(z, z_t)]                -- (Xi \ x \ y) ; (z : A * B)
+            return out
+
+          UnitPat -> do
+            x_t <- lookup src env               -- x in Gamma
+            let One = x_t                       -- assert x : 1
+            xi <- typecheck env Q (var, var_t)  -- run Q
+            out <- merge xi [(src, x_t)]        -- Xi ; (x : 1)
+            return out
+
+          -- TODO assert no duplicate labels
+          -- TODO assert exhaustive pattern matching
+          InjPat(label, y_l) -> do
+            x_t <- lookup src env               -- x in Gamma
+            let Plus(cases) = x_t               -- x : +{l : A_l}
+            -- TODO: this is not a strong enough assertion, since this is only
+            -- asserting structure of the type, not that the variants match?
+            -- i.e. how to check that this pattern matching is exhaustive...
+            -- the AST does not align with the presentation in the notes
+            xi_l <- typecheck (cons (y_l, _) env) Q (var, var_t) -- TODO hole
+            xi <- subtract xi_l y_l
+            return xi
+
+      assert (same xis)   -- from the notes: all branches must yield same xi
+      return (xis!!0)     -- no empty branches (enforced by grammar)
+
+    Call(P, dst, args) ->
+      -- TODO same as TpName case, need a lookup on procedures to get 
+      -- type information and parameters
