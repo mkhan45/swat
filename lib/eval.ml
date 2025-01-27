@@ -13,7 +13,7 @@ let rec print_value (v : value) f : unit =
   | Unit -> f "()"
   | Pair(x, y) -> let _ = f "(" in
                   let _ = print_value x f in
-                  let _ = f ", " in
+                  let _ = f "," in
                   let _ = print_value y f in
                   f ")"
   | Label(lbl, v) -> let _ = f lbl in
