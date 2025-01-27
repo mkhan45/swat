@@ -139,7 +139,8 @@ let typecheck (_procs : Procs.t) (_dest : tp) (_body : cmd) : bool =
                   | None -> infer right (Map.set env ~key:new_v ~data:new_t)
                 end
         | Call (_proc, dest, args) -> 
-                (* TODO: actually check args, dest type against proc *)
+                (* TODO: actually check args, dest type against proc, can use Procs helper function *)
                 { write = (dest, !!dest); read = args |> List.map ~f:(fun arg -> (arg, !!arg)) }
-    in 
+    in
+    (* TODO: infer body, check write subtype against dest *)
     raise Undefined
