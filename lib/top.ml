@@ -1,5 +1,7 @@
 (** Top Level Environment *)
 
+open Eval
+
 module U = Unix
 module A = Ast
 
@@ -28,8 +30,13 @@ let rec load (raw : Ast.env) (filenames : string list) : Ast.env =
 
 let main () =
   try
-    let env = load [] (parse_cmd_line_args ()) in
-    let () = print_string (A.Print.pp_env env) in
+    let args = parse_cmd_line_args () in
+    let env = load [] args in
+(*  let () = print_string (A.Print.pp_env env) in *)
+    let out_channel = open_out ((List.hd args) ^ ".val") in
+    let print_string s = output_string out_channel s in
+    let _ = eval_and_print print_string env in
+    let _ = close_out out_channel in
     serve_exit_code Serve_success |> Stdlib.exit
   with
   | Error_msg.Error ->
