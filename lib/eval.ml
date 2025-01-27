@@ -55,7 +55,10 @@ let match_pat (v : value) (case : pat * cmd) : bool =
                 | Unit -> true
                 | _ -> false)
   | InjPat(label, _) -> (match v with
-                         | Label(label', _) -> String.equal label label'
+                         | Label(label', _) -> 
+                             (* let _ = print_string ("Comparing \"" ^ label ^ "\" with \"" ^ label' ^ "\"") in *)
+                             (* let _ = print_string (if String.equal label label' then "TRUE\n" else "FALSE\n") in *)
+                             String.equal label label'
                          | _ -> false)
 
 (* not a go because you will have to interface with env to provide arguments *)
@@ -78,12 +81,13 @@ let rec eval_proc (procs : proc list) (env : env) (cmd : cmd) : env =
         eval_proc procs env' q
     | Call (proc, dst, srcs) ->
         (* res unused, unnecessary because of type system *)
+        (* let _ = print_string ("Evaluating " ^ proc ^ "\n") in *)
         let (res, params, cmd) = snd (List.find (fun (n, _) -> String.equal n proc) procs) in
         let (args, env') = List.fold_left 
             (fun (vs, env) x -> let (v, env') = read x env in (v::vs, env')) 
             ([], env) 
             srcs in
-        let [(_, v)] = eval_proc procs (List.combine params args) cmd in
+        let [(_, v)] = eval_proc procs (List.combine params (List.rev args)) cmd in
         (* should only be one value bound in environment after call which must
          * be the result of the call
          *)
