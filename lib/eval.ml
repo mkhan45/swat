@@ -8,6 +8,9 @@ type proc = (procname * (varname * varname list * cmd))
 type cell = varname * value
 type env = cell list
 
+exception DuplicateLabels
+exception TypeError
+
 let rec print_value (v : value) f : unit =
   match v with
   | Unit -> f "()"
@@ -107,6 +110,36 @@ let rec eval_proc (procs : proc list) (env : env) (cmd : cmd) : env =
             eval_proc procs env'' cmd
         (* val fold_left : ('acc -> 'a -> 'acc) -> 'acc -> 'a list -> 'acc *)
 
+let typecheck_top (prog : defn list) : unit =
+    let open Typecheck in
+    let open Core in
+    let proc_ls = List.filter_map prog ~f:(fun d -> match d with | ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) in
+    let procs: Procs.t = proc_ls |> Map.of_alist_exn (module String) in
+
+    let type_ls = List.filter_map prog ~f:(fun d -> match d with | TypeDefn (_n, def) -> Some def | _ -> None) in
+    let labels: Labels.t = begin
+        let rec search (labels_acc: Labels.t) (types: tp list) : Labels.t = match types with
+        | [] -> labels_acc
+        | (One | TpName _) :: rest -> search labels_acc rest
+        | Times (l, r) :: rest -> search labels_acc (l :: r :: rest)
+        | (Plus cases) :: rest ->
+            let (new_labels, to_search) = 
+                List.fold_left cases ~init:(labels_acc, rest) ~f:(fun (acc, wl) (l, t) -> 
+                    match Map.find acc l with 
+                    | Some existing when not (type_equals t existing) -> 
+                            Printf.printf "%s != %s" (Print.pp_tp t) (Print.pp_tp existing);
+                            raise DuplicateLabels
+                    | _ -> (Map.set acc l t, t :: wl))
+            in search new_labels to_search
+        in
+        search Labels.empty type_ls
+    end in
+
+    let typedefs = prog |> List.filter_map ~f:(fun d -> match d with | TypeDefn (n, d) -> Some (n, d) | _ -> None) |> Map.of_alist_exn (module String) in
+
+    if typecheck typedefs procs labels
+    then ()
+    else raise TypeError
 
 let go_eval f (procs : proc list) (defn : defn) : unit =
   match defn with
@@ -120,5 +153,5 @@ let go_eval f (procs : proc list) (defn : defn) : unit =
   | _ -> ()
 
 let eval_and_print f (prog : defn list) : unit =
-  let _ = List.map (go_eval f (procs prog)) prog in ()
-
+    typecheck_top prog;
+    Core.List.iter prog ~f:(go_eval f (procs prog));
