@@ -58,23 +58,6 @@ let type_equals (type1 : tp) (type2 : tp) : bool =
 let%test _ = type_equals type_nat type_unary
 let%test _ = not (type_equals type_nat type_pos)
 
-let rec type_subtype (env : (string, tp, String.comparator_witness) Map.t) (type1 : tp) (type2 : tp) : bool =
-  match (type1, type2) with
-  | (One, One) -> true
-  | (Times (x1, x2), Times (y1, y2)) -> type_subtype env x1 y1 && type_subtype env x2 y2
-  | (Plus xs, Plus ys) ->
-    let xmap = Map.of_alist_exn (module String) xs in
-    let ymap = Map.of_alist_exn (module String) ys in 
-    let keys = Map.keys xmap in
-        List.for_all keys ~f:(fun label -> let x = Map.find_exn xmap label in
-                                            match Map.find ymap label with
-                                            | Some y -> type_subtype env x y
-                                            | None -> false)
-  | (TpName x, TpName y) -> String.equal x y
-  | (TpName x, y) -> type_subtype (Hamburger.get env x) y
-  | (x, TpName y) -> type_subtype x (Hamburger.get env y)
-  | _ -> false
-
 module Hamburger = struct
   type t = (string, tp, String.comparator_witness) Map.t
   type res = TypeMismatch of type_mismatch | NotFound of varname | Unused of t
@@ -89,7 +72,28 @@ module Hamburger = struct
                     | Some r -> r
                     | None -> raise (TypeMismatch (NotFound v))
 
-  let rec check_complete (env : t) (reads : (varname * tp) list) : res = match reads with
+  let print h = Map.iteri h ~f:(fun ~key ~data -> Printf.printf "%s: %s\n" key (Print.pp_tp data))
+
+  let print_ls h = List.iter h ~f:(fun (key, data) -> Printf.printf "%s: %s\n" key (Print.pp_tp data))
+
+  let rec type_subtype (env : t) (type1 : tp) (type2 : tp) : bool =
+    match (type1, type2) with
+    | (One, One) -> true
+    | (Times (x1, x2), Times (y1, y2)) -> type_subtype env x1 y1 && type_subtype env x2 y2
+    | (Plus xs, Plus ys) ->
+      let xmap = Map.of_alist_exn (module String) xs in
+      let ymap = Map.of_alist_exn (module String) ys in 
+      let keys = Map.keys xmap in
+          List.for_all keys ~f:(fun label -> let x = Map.find_exn xmap label in
+                                              match Map.find ymap label with
+                                              | Some y -> type_subtype env x y
+                                              | None -> false)
+    | (TpName x, TpName y) -> String.equal x y
+    | (TpName x, y) -> type_subtype env (get env x) y
+    | (x, TpName y) -> type_subtype env x (get env y)
+    | _ -> false
+
+  and check_complete (env : t) (reads : (varname * tp) list) : res = match reads with
   | [] -> Unused env
   | (read_var, read_tp) :: rest -> begin match Map.find env read_var with
                                    | Some write_tp when type_subtype env read_tp write_tp -> check_complete (Map.remove env read_var) rest
@@ -97,10 +101,9 @@ module Hamburger = struct
                                    | None -> (NotFound read_var)
                                    end
 
-  let print h = Map.iteri h ~f:(fun ~key ~data -> Printf.printf "%s: %s\n" key (Print.pp_tp data))
-
-  let print_ls h = List.iter h ~f:(fun (key, data) -> Printf.printf "%s: %s\n" key (Print.pp_tp data))
 end
+
+let type_subtype = Hamburger.type_subtype
 
 let%test _ = type_subtype (Hamburger.empty) type_pos type_nat
 let%test _ = not (type_subtype Hamburger.empty type_nat type_pos)
@@ -123,7 +126,7 @@ end
 type inferred_tp = { write : (varname * tp); read : (varname * tp) list }
 let print_infer infer = 
     Printf.printf "---\nwrite = %s : %s\nread:\n" (fst infer.write) (Print.pp_tp (snd infer.write));
-    Hamburger.print_ls infer.read;
+    (*Hamburger.print_ls infer.read;*)
     Printf.printf "---\n";;
 
 let typecheck (env : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : bool =
@@ -157,28 +160,38 @@ let typecheck (env : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : bool =
                 end
         | Cut (new_v, new_t, left, right) ->
                 let l_infer = infer left env in
-                print_infer l_infer;
+                (*print_infer l_infer;*)
                 let (l_write_var, l_write_tp) = l_infer.write in
                 if not ((String.equal new_v l_write_var) && (type_subtype env l_write_tp new_t)) 
                 then 
                     raise (MissingWrite { expected = (new_v, new_t); got = l_infer.write })
                 else begin match Hamburger.check_complete env l_infer.read with
                   | Hamburger.Unused env -> 
-                          let r_infer = infer right (Map.set env ~key:new_v ~data:new_t) in
-                          match Hamburger.check_complete env r_infer.read with
+                          let new_env = Map.set env ~key:new_v ~data:new_t in
+                          let r_infer = infer right new_env in
+                          begin match Hamburger.check_complete new_env r_infer.read with
                           | (Hamburger.Unused m) when Map.is_empty m -> { write = r_infer.write; read = [] }
-                          | err -> raise (Hamburger.TypeMismatch err)
+                          | (Hamburger.Unused m) ->
+                                  Hamburger.print m;
+                                  raise (Hamburger.TypeMismatch (Hamburger.Unused m))
+                          | (Hamburger.NotFound v) as err ->
+                                  Printf.printf "not found %s\n" v;
+                                  raise (Hamburger.TypeMismatch err)
+                          | (Hamburger.TypeMismatch { var; wrote; read }) as err -> 
+                                  Printf.printf "Type mismatch for %s, wrote %s, read %s" var (Print.pp_tp wrote) (Print.pp_tp read);
+                                  raise (Hamburger.TypeMismatch err)
+                          end
                   | err -> raise (Hamburger.TypeMismatch err)
                 end
         | Call (_proc, dest, args) -> 
                 (* TODO: actually check args, dest type against proc, can use Procs helper function *)
                 { write = (dest, !!dest); read = args |> List.map ~f:(fun arg -> (arg, !!arg)) }
     in
-    (* TODO: infer body, check write subtype against dest *)
+    (* TODO: i am stupid and overloaded type name env and read variables env *)
     Map.for_all procs ~f:(fun ((dest_var, dest_tp), args, body) ->
         let env = List.fold_left args ~init:env ~f:(fun env (v, t) -> Map.set env ~key:v ~data:t) in
         let { write = (write_var, write_tp); read } as res = infer body env in
-        print_infer res;
+        (*print_infer res;*)
         let dest_tp = match dest_tp with
         | TpName n -> Hamburger.get env n
         | _ -> dest_tp
@@ -186,6 +199,6 @@ let typecheck (env : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : bool =
         Printf.printf "dest = %s : %s\n" dest_var (Print.pp_tp dest_tp);
         Printf.printf "%s <= %s: %b\n" (Print.pp_tp write_tp) (Print.pp_tp dest_tp) (type_subtype env write_tp dest_tp);
         Printf.printf "%s = %s: %b\n" (write_var) (dest_var) (String.equal write_var dest_var);
-        Printf.printf "empty: %b\n" (List.is_empty read);
-        (List.is_empty read) && (String.equal write_var dest_var) && (type_subtype env write_tp dest_tp)
+        Printf.printf "%d = %d: %b\n" (List.length read) (List.length args) (List.length read = List.length args);
+        (List.length read = List.length args) && (String.equal write_var dest_var) && (type_subtype env write_tp dest_tp)
     )
