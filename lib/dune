@@ -9,4 +9,4 @@
 
 ; makes subdirs not be their own module/library
 (include_subdirs unqualified)
-(env (dev (flags (:standard -w -69 -w -32 -warn-error -A))))
+(env (dev (flags (:standard -w -69 -w -32 -warn-error -A -g))))

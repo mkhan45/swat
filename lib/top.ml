@@ -46,4 +46,6 @@ let main () =
     print_endline e;
     print_endline "error";
     serve_exit_code Serve_error |> Stdlib.exit
-  | exn -> print_endline ((List.hd (parse_cmd_line_args ())) ^ ": exception: " ^ Printexc.to_string exn)
+  | exn -> 
+          Printexc.print_backtrace stdout;
+          print_endline ((List.hd (parse_cmd_line_args ())) ^ ": exception: " ^ Printexc.to_string exn)
