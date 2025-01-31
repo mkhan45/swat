@@ -79,6 +79,7 @@ rule initial = parse
 
 and comment_line = parse
   | '\n' { Lexing.new_line lexbuf; initial lexbuf }
+  | eof { initial lexbuf }
   | _ { comment_line lexbuf }
 
 and comment_block depth = parse

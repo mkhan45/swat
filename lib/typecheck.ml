@@ -43,15 +43,16 @@ let type_equals (type1 : tp) (type2 : tp) : bool =
   try
     let substs = Substs.empty in
     let partial_substs = type_unify type1 type2 in
-    let rec go ts substs =
+    let rec go ts substs fuel = (* lazy for loop detection *)
       match ts with
+      | _ when fuel = 0 -> substs
       | [] -> substs
       | (v, t)::ts' -> (match Map.find substs v with
-                              | None -> go ts' (Map.set substs ~key:v ~data:t)
+                              | None -> go ts' (Map.set substs ~key:v ~data:t) (fuel - 1)
                               | Some t' -> let new_substs = type_unify t' t in
-                                             go (new_substs @ ts') substs)
+                                             go (new_substs @ ts') substs (fuel - 1))
     in
-      go partial_substs substs |> const true
+      go partial_substs substs 1000 |> const true
   with
   | UnunificationException _ -> false
 
@@ -83,6 +84,7 @@ module Hamburger = struct
 
   let rec type_subtype (env : t) (type1 : tp) (type2 : tp) : bool =
     match (type1, type2) with
+    | (_, _) when type_equals type1 type2 -> true
     | (One, One) -> true
     | (Times (x1, x2), Times (y1, y2)) -> type_subtype env x1 y1 && type_subtype env x2 y2
     | (x, Plus ys) when (List.Assoc.find (List.Assoc.inverse ys) ~equal:type_equals x) |> Option.is_some -> true
@@ -153,7 +155,7 @@ let ensure_used (typenames : Hamburger.t) (read : (varname * tp) list) (v : varn
             raise Hamburger.(TypeMismatch (TypeMismatch { var = v; wrote = t; read = rt }))
     | None -> raise Hamburger.(TypeMismatch (SingleUnused v)) 
 
-let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : bool =
+let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : Procs.t =
     let rec infer (com : cmd) (tps: Hamburger.t) : inferred_tp = 
         let (!!) v = match Hamburger.get tps v with
                    | TpName n -> Map.find_exn typenames n
@@ -214,7 +216,7 @@ let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : b
                 let read = List.zip_exn args proc_args |> List.map ~f:(fun (v, (_, t)) -> (v, t)) in
                 { write = (dest, proc_dest_tp); read }
     in
-    Map.for_alli procs ~f:(fun ~key ~data ->
+    Map.filteri procs ~f:(fun ~key ~data ->
         let ((dest_var, dest_tp), args, body) = data in
         let tps = List.fold_left args ~init:Hamburger.empty ~f:(fun env (v, t) -> Map.set env ~key:v ~data:t) in
         let { write = (write_var, write_tp); read } = infer body tps in

@@ -20,4 +20,4 @@ module Labels : sig
   val empty : t
 end
 
-val typecheck : Hamburger.t -> Procs.t -> Labels.t -> bool
+val typecheck : Hamburger.t -> Procs.t -> Labels.t -> Procs.t

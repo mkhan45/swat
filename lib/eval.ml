@@ -110,9 +110,11 @@ let rec eval_proc (procs : proc list) (env : env) (cmd : cmd) : env =
             eval_proc procs env'' cmd
         (* val fold_left : ('acc -> 'a -> 'acc) -> 'acc -> 'a list -> 'acc *)
 
-let typecheck_top (prog : defn list) : unit =
+let typecheck_top (prog : defn list) =
     let open Typecheck in
     let open Core in
+
+    try
     let proc_ls = List.filter_map prog ~f:(fun d -> match d with | ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) in
     let procs: Procs.t = proc_ls |> Map.of_alist_exn (module String) in
 
@@ -125,21 +127,21 @@ let typecheck_top (prog : defn list) : unit =
         | (Plus cases) :: rest ->
             let (new_labels, to_search) = 
                 List.fold_left cases ~init:(labels_acc, rest) ~f:(fun (acc, wl) (l, t) -> 
-                    match Map.find acc l with 
-                    | Some existing when not (type_equals t existing) -> 
-                            Printf.printf "%s != %s" (Print.pp_tp t) (Print.pp_tp existing);
-                            raise DuplicateLabels
-                    | _ -> (Map.set acc l t, t :: wl))
+                    (* match Map.find acc l with *) 
+                    (* | Some existing when not (type_equals t existing) -> *) 
+                    (*         raise DuplicateLabels *)
+                    (* | _ -> (Map.set acc l t, t :: wl)) *)
+                    (Map.set acc l t, t :: wl))
             in search new_labels to_search
         in
         search Labels.empty type_ls
     end in
 
     let typedefs = prog |> List.filter_map ~f:(fun d -> match d with | TypeDefn (n, d) -> Some (n, d) | _ -> None) |> Map.of_alist_exn (module String) in
+    (typecheck typedefs procs labels) |> Map.to_alist
 
-    if typecheck typedefs procs labels
-    then ()
-    else raise TypeError
+    with 
+    | _ -> []
 
 let go_eval f (procs : proc list) (defn : defn) : unit =
   match defn with
@@ -153,5 +155,6 @@ let go_eval f (procs : proc list) (defn : defn) : unit =
   | _ -> ()
 
 let eval_and_print f (prog : defn list) : unit =
-    typecheck_top prog;
-    Core.List.iter prog ~f:(go_eval f (procs prog));
+    let tchk = typecheck_top prog in
+    let _procs_2 = prog |> Core.List.filter ~f:(fun d -> match d with | ProcDefn (n, _, _, _) -> Core.Option.is_some (Core.List.Assoc.find ~equal:String.equal tchk n) | _ -> false) in
+    Core.List.iter prog ~f:(go_eval f (procs prog))
