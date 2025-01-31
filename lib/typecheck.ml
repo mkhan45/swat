@@ -67,7 +67,7 @@ module Hamburger = struct
 
   let empty : t = Map.empty (module String)
 
-  let rec get env v = match Map.find env v with
+  let get env v = match Map.find env v with
                       | Some r -> r
                       | None -> raise (TypeMismatch (NotFound v))
   (* let rec get env v = match Map.find env v with *)
@@ -85,6 +85,8 @@ module Hamburger = struct
     match (type1, type2) with
     | (One, One) -> true
     | (Times (x1, x2), Times (y1, y2)) -> type_subtype env x1 y1 && type_subtype env x2 y2
+    | (x, Plus ys) when (List.Assoc.find (List.Assoc.inverse ys) ~equal:type_equals x) |> Option.is_some -> true
+    | (Plus xs, y) when (List.Assoc.find (List.Assoc.inverse xs) ~equal:type_equals y) |> Option.is_some -> true
     | (Plus xs, Plus ys) ->
       let xmap = Map.of_alist_exn (module String) xs in
       let ymap = Map.of_alist_exn (module String) ys in 
