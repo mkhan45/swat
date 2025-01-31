@@ -71,12 +71,6 @@ module Hamburger = struct
   let get env v = match Map.find env v with
                       | Some r -> r
                       | None -> raise (TypeMismatch (NotFound v))
-  (* let rec get env v = match Map.find env v with *)
-  (*                   | Some (TpName n) -> get env n *)
-  (*                   | Some r -> r *)
-  (*                   | None -> *) 
-  (*                           Printf.printf "1: Not found %s\n" v; *)
-  (*                           raise (TypeMismatch (NotFound v)) *)
 
   let print h = Map.iteri h ~f:(fun ~key ~data -> Printf.printf "%s: %s\n" key (Print.pp_tp data))
 
@@ -101,24 +95,6 @@ module Hamburger = struct
     | (TpName x, y) -> type_subtype env (get env x) y
     | (x, TpName y) -> type_subtype env x (get env y)
     | _ -> false
-
-  (* and check_complete (typenames : t) (env : t) (reads : (varname * tp) list) : res = match reads with *)
-  (* | [] -> Unused env *)
-  (* | (read_var, read_tp) :: rest -> begin match Map.find env read_var with *)
-  (*                                  | Some write_tp when type_subtype typenames read_tp write_tp -> check_complete typenames (Map.remove env read_var) rest *)
-  (*                                  | Some write_tp -> (TypeMismatch { var = read_var; wrote = write_tp; read = read_tp }) *)
-  (*                                  | None -> (NotFound read_var) *)
-  (*                                  end *)
-
-  let rec interfere (typenames : t) (env : t) (reads : (varname * tp) list) : (t * ((varname * tp) list)) = match reads with
-  | [] -> (env, [])
-  | (read_var, read_tp) :: rest -> begin match Map.find env read_var with
-                                   | Some write_tp when type_subtype typenames read_tp write_tp -> interfere typenames (Map.remove env read_var) rest
-                                   | Some write_tp -> raise (TypeMismatch (TypeMismatch { var = read_var; wrote = write_tp; read = read_tp }))
-                                   | None ->
-                                           let (res_env, res_reads) = interfere typenames env rest in
-                                           (res_env, (read_var, read_tp) :: res_reads)
-                                   end
 end
 
 let type_subtype = Hamburger.type_subtype
@@ -147,6 +123,7 @@ let print_infer infer =
     Hamburger.print_ls infer.read;
     Printf.printf "---\n";;
 
+(* given a list of reads, ensures that (v: t) was read and removes it *)
 let ensure_used (typenames : Hamburger.t) (read : (varname * tp) list) (v : varname) (t : tp) : ((varname * tp) list) =
     match List.Assoc.find read v ~equal:String.equal with
     | Some rt when type_subtype typenames t rt -> List.Assoc.remove read v ~equal:String.equal
@@ -156,6 +133,10 @@ let ensure_used (typenames : Hamburger.t) (read : (varname * tp) list) (v : varn
     | None -> raise Hamburger.(TypeMismatch (SingleUnused v)) 
 
 let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : Procs.t =
+    (* infers the destination of a command and what free variables it reads 
+       whenever a variable is allocated for a child command, it uses ensure_read
+       to assert that the new variable was actually used. Also ensures that
+       Cut actually writes to its first var *)
     let rec infer (com : cmd) (tps: Hamburger.t) : inferred_tp = 
         let (!!) v = match Hamburger.get tps v with
                    | TpName n -> Map.find_exn typenames n
@@ -180,9 +161,8 @@ let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : P
                                                                                      i |> ensure_used v (Map.find_exn labels l)
                                                                              | _ -> raise Undefined (* should be impossible by grammar *))
                         in
-                        let case_hd = List.hd_exn cases in (* all should be the same *)
+                        let case_hd = List.hd_exn cases in (* TODO: all should be the same *)
                         { case_hd with read = (from, !!from) :: case_hd.read }
-                        (* if List.for_all cases ~f:(phys_equal case_hd) then case_hd else raise MatchError *)
                 | _ -> 
                         raise MatchError
                 end
@@ -202,12 +182,9 @@ let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : P
                 then 
                     raise (MissingWrite { expected = (new_v, new_t); got = l_infer.write })
                 else begin
-                    (* let (new_env, remaining_reads) = Hamburger.interfere typenames env l_infer.read in *)
                     let tps = tps |> Map.set ~key:new_v ~data:new_t in
                     let r_infer = infer right tps |> ensure_used new_v new_t in
                     { r_infer with read = l_infer.read @ r_infer.read }
-                    (* let (final_env, final_reads) = Hamburger.interfere typenames new_env (remaining_reads @ r_infer.read) in *)
-                    (* { r_infer with read = final_reads } *)
                 end
         | Call (proc_name, dest, args) -> 
                 (* TODO: actually check args, dest type against proc, can use Procs helper function *)
@@ -219,11 +196,14 @@ let typecheck (typenames : Hamburger.t) (procs : Procs.t) (labels: Labels.t) : P
     Map.filteri procs ~f:(fun ~key ~data ->
         let ((dest_var, dest_tp), args, body) = data in
         let tps = List.fold_left args ~init:Hamburger.empty ~f:(fun env (v, t) -> Map.set env ~key:v ~data:t) in
+
+        (* infer on the body returns the destination write and all free variables read
+           the only free variables read should be the arguments *)
         let { write = (write_var, write_tp); read } = infer body tps in
-        (*print_infer res;*)
         let dest_tp = match dest_tp with
         | TpName n -> Hamburger.get typenames n
         | _ -> dest_tp
         in
+        (* TODO: really should use ensure_read on each arg, to make suer all args are used *)
         (List.length read = List.length args) && (String.equal write_var dest_var) && (type_subtype typenames write_tp dest_tp)
     )
