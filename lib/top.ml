@@ -1,7 +1,5 @@
 (** Top Level Environment *)
 
-open Eval
-
 module U = Unix
 module A = Ast
 
@@ -30,13 +28,27 @@ let rec load (raw : Ast.env) (filenames : string list) : Ast.env =
 
 let main () =
   try
+    let open Core in
     let args = parse_cmd_line_args () in
     let env = load [] args in
 (*  let () = print_string (A.Print.pp_env env) in *)
-    let out_channel = open_out ((List.hd args) ^ ".val") in
+    let out_channel = open_out ((List.hd_exn args) ^ ".val") in
     let print_string s = output_string out_channel s in
-    let _ = eval_and_print print_string env in
-    let _ = close_out out_channel in
+    let type_names = env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None) |> Map.of_alist_exn (module String) in
+    let procs = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) |> Map.of_alist_exn (module String) in
+    let compile_dest = Compiler.(compiler { type_names; procs }) in
+    List.iter env ~f:(function
+        | A.ProcDefn (n, d, a, b) -> 
+                Printf.printf "proc %s:\n" n;
+                let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars:(Map.empty (module String)) Compiler.empty_func_env in
+                List.iter insts ~f:(fun i -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region i);
+                Compiler.print_func_env e;
+                Printf.printf "\n";
+                ()
+        | _ -> ()
+    );
+    (*let _ = eval_and_print print_string env in*)
+    (*let _ = close_out out_channel in*)
     serve_exit_code Serve_success |> Stdlib.exit
   with
   | Error_msg.Error ->
