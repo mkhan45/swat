@@ -2,9 +2,9 @@ open Core
 
 module S = Ast
 module W = Wasm.Ast
-module WV = Wasm.Values
+module WV = Wasm.Value
 
-let to_region t = Wasm.Source.at Wasm.Source.no_region t
+let to_region t = Wasm.Source.(@@) t Wasm.Source.no_region
 
 let to_wasm_int i = WV.I32 (Int32.of_int_exn i)
 
