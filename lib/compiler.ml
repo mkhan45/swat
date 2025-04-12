@@ -47,6 +47,7 @@ let rec sizeof (t : S.tp) : int = match t with
 
 type macro_inst = GetAddr of string
                 | InitAddr of string
+                | Move of (string * string)
                 | WASM of W.instr'
 
 (*type asm_env = *)
@@ -70,10 +71,17 @@ let compiler (env : compile_env) =
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
         match cmd with
         | S.Cut (v, t, l, r) ->
+              (* TODO: typecheck *)
               let (is, e) = compile_dest ~cmd:l ~dest:(v, t) ~vars wasm_func in
               let new_vars = Map.set vars ~key:v ~data:t in
               let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars e in
               (is @ ((InitAddr v) :: i), e')
+        | S.Id (l, r) ->
+              (* TODO: typecheck *)
+              ([Move (l, r)], wasm_func)
+        | S.Call (p, d, ps) ->
+              (* TODO *)
+              raise Todo
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in

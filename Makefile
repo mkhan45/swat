@@ -2,6 +2,9 @@ all: sax
 
 default: all
 
+init:
+	opam pin add wasm wasm/interpreter
+
 sax: always
 	install _build/default/bin/$@.exe $@
 	strip $@
