@@ -41,7 +41,10 @@ let main () =
         | A.ProcDefn (n, d, a, b) -> 
                 Printf.printf "proc %s:\n" n;
                 let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars:(Map.empty (module String)) Compiler.empty_func_env in
-                List.iter insts ~f:(fun i -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region i);
+                List.iter insts ~f:(function
+                    | Compiler.GetAddr s -> Printf.printf "Get %s\n" s;
+                    | Compiler.InitAddr s -> Printf.printf "Init %s\n" s;
+                    | Compiler.WASM w -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region w);
                 Compiler.print_func_env e;
                 Printf.printf "\n";
                 ()
