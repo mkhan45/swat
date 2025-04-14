@@ -53,6 +53,18 @@ type macro_inst = GetAddr of string
                 | Switch of ((int * (macro_inst list)) list)
                 | WASM of W.instr'
 
+let rec print_macro_inst = function
+| GetAddr s -> Printf.printf "Get %s\n" s
+| InitAddr s -> Printf.printf "Init %s\n" s
+| Move (l, r) -> Printf.printf "Move %s to %s\n" l r
+| Call (p, ps) -> Printf.printf "Call %s (%s)\n" p (String.concat ~sep:", " ps)
+| Switch ls -> 
+        Printf.printf "Switch\n";
+        List.iter ls ~f:(fun (i, is) ->
+            Printf.printf "Case %d:\n" i;
+            List.iter is ~f:print_macro_inst)
+| WASM w -> Wasm.Print.instr Out_channel.stdout 120 @@ to_region w
+
 (*type asm_env = *)
 
 let compiler (env : compile_env) =
@@ -78,7 +90,7 @@ let compiler (env : compile_env) =
               let (is, e) = compile_dest ~cmd:l ~dest:(v, t) ~vars wasm_func in
               let new_vars = Map.set vars ~key:v ~data:t in
               let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars e in
-              (is @ ((InitAddr v) :: i), e')
+              ((InitAddr v) :: (is @ i), e')
         | S.Id (l, r) ->
               (* TODO: typecheck 
                     - does l have to be dest? *)
@@ -101,7 +113,11 @@ let compiler (env : compile_env) =
               | Plus ls -> 
                       let bs = List.map bs ~f:(function (InjPat (l, v), b) -> (l, (v, b)) | _ -> raise BadMatch) in
                       let cases = List.map ls ~f:(fun (l, t) -> (l, List.Assoc.find_exn bs l ~equal:String.equal)) in
-                      let case_instrs = List.map cases ~f:(fun (l, (v, b)) -> raise Todo) in
+                      let case_instrs = List.mapi cases ~f:(fun i (l, (v, b)) -> 
+                          let inner_env = Map.set vars ~key:v ~data:(List.Assoc.find_exn ls l ~equal:String.equal) in
+                          let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
+                          (i, is))
+                      in
                       ([Switch case_instrs], wasm_func))
         | _ ->
             let (dest_var, dest_tp) = dest in

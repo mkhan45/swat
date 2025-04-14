@@ -40,11 +40,9 @@ let main () =
     List.iter env ~f:(function
         | A.ProcDefn (n, d, a, b) -> 
                 Printf.printf "proc %s:\n" n;
-                let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars:(Map.empty (module String)) Compiler.empty_func_env in
-                List.iter insts ~f:(function
-                    | Compiler.GetAddr s -> Printf.printf "Get %s\n" s;
-                    | Compiler.InitAddr s -> Printf.printf "Init %s\n" s;
-                    | Compiler.WASM w -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region w);
+                let vars = Map.of_alist_exn (module String) a in
+                let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars Compiler.empty_func_env in
+                List.iter insts ~f:Compiler.print_macro_inst;
                 Compiler.print_func_env e;
                 Printf.printf "\n";
                 ()

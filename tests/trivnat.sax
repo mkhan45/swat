@@ -1,0 +1,25 @@
+type nat = +{ 'zero : 1, 'succ : nat }
+
+type bool = +{ 'true : 1, 'false : 1 }
+
+proc zero (d : nat) =
+  cut u : 1
+    write u ()
+    write d 'zero(u)
+
+proc succ (d : nat) (n : nat) =
+  write d 'succ(n)
+
+proc one (d : nat) =
+  cut z : nat
+    call zero z
+    call succ d z
+
+proc add (d : nat) (a : nat) (b : nat) =
+  read b {
+  | 'zero(u) => read u ()
+                  id d a
+  | 'succ(s) => cut x : nat
+                  call add x a s
+                  call succ d x
+  }
