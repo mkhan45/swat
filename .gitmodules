@@ -1,3 +1,4 @@
 [submodule "wasm"]
 	path = wasm
-	url = "git@github.com:WebAssembly/spec.git#wasm-3.0"
+        url = "git@github.com:WebAssembly/spec.git"
+        branch = wasm-3.0

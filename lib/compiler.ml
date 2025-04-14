@@ -48,6 +48,8 @@ let rec sizeof (t : S.tp) : int = match t with
 type macro_inst = GetAddr of string
                 | InitAddr of string
                 | Move of (string * string)
+                | Call of (string * string list)
+                | Switch of ((int * (macro_inst list)) list)
                 | WASM of W.instr'
 
 (*type asm_env = *)
@@ -77,11 +79,23 @@ let compiler (env : compile_env) =
               let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars e in
               (is @ ((InitAddr v) :: i), e')
         | S.Id (l, r) ->
-              (* TODO: typecheck *)
+              (* TODO: typecheck 
+                    - does l have to be dest? *)
               ([Move (l, r)], wasm_func)
         | S.Call (p, d, ps) ->
-              (* TODO *)
-              raise Todo
+              (* TODO:
+                    - does d have to be dest? *)
+              let gets = List.map ps ~f:(fun v -> GetAddr v) in
+              (gets @ [Call (p, ps)], wasm_func)
+        | S.Read (v, bs) ->
+              let subj_tp = Map.find_exn vars v |> fix in
+              (match subj_tp with
+              | One -> raise Todo
+              | Times (lt, rt) -> raise Todo
+              | Plus ls -> 
+                      (* TODO:
+                            - should compile to a br_table *)
+                      raise Todo)
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in
