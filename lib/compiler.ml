@@ -10,6 +10,7 @@ let to_wasm_int i = WV.I32 (Int32.of_int_exn i)
 
 exception Todo
 exception BadType
+exception BadMatch
 
 exception TypeError
 
@@ -84,18 +85,24 @@ let compiler (env : compile_env) =
               ([Move (l, r)], wasm_func)
         | S.Call (p, d, ps) ->
               (* TODO:
-                    - does d have to be dest? *)
+                    - does d have to be dest? I think so *)
               let gets = List.map ps ~f:(fun v -> GetAddr v) in
               (gets @ [Call (p, ps)], wasm_func)
         | S.Read (v, bs) ->
               let subj_tp = Map.find_exn vars v |> fix in
               (match subj_tp with
-              | One -> raise Todo
-              | Times (lt, rt) -> raise Todo
+              | One -> 
+                      (* TODO: typecheck *)
+                      ([], wasm_func)
+              | Times (lt, rt) -> 
+                      (match bs with
+                       | [PairPat (lv, rv), b] -> raise Todo
+                       | _ -> raise BadMatch)
               | Plus ls -> 
-                      (* TODO:
-                            - should compile to a br_table *)
-                      raise Todo)
+                      let bs = List.map bs ~f:(function (InjPat (l, v), b) -> (l, (v, b)) | _ -> raise BadMatch) in
+                      let cases = List.map ls ~f:(fun (l, t) -> (l, List.Assoc.find_exn bs l ~equal:String.equal)) in
+                      let case_instrs = List.map cases ~f:(fun (l, (v, b)) -> raise Todo) in
+                      ([Switch case_instrs], wasm_func))
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in

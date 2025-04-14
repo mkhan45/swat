@@ -30,3 +30,4 @@ _opam/
 
 tests/*.sax.val
 ./sax
+sax
