@@ -7,6 +7,7 @@ module WV = Wasm.Value
 let to_region t = Wasm.Source.(@@) t Wasm.Source.no_region
 
 let to_wasm_int i = WV.I32 (Int32.of_int_exn i)
+let to_wasm_imm i = to_region (Int32.of_int_exn i)
 
 exception Todo
 exception BadType
@@ -37,6 +38,8 @@ let print_func_env env = ()
     (*let addr_ls = Map.to_alist env.addrs in*)
     (*let addr_s = String.concat ~sep:", " (List.map addr_ls ~f:(fun (s, a) -> s ^ ":" ^ (addr_to_string a))) in*)
     (*Printf.printf "addrs: { %s }\nstacklen: %d" addr_s env.stacklen*)
+
+type asm_state = { stack : string list; locals : string list }
 
 type winsts = W.instr' list
 
@@ -80,11 +83,25 @@ let compiler (env : compile_env) =
     | _ -> t
     in
 
-    let rec asm (ms : macro_inst list) (wf : wasm_func_env) : W.instr' list = match ms with
+    let rec asm (ms : macro_inst list) (st : asm_state) (wf : wasm_func_env) : W.instr' list = match ms with
     | [] -> []
-    | (WASM w) :: xs -> w :: asm xs wf
-    | (GetAddr s) :: xs -> raise Todo
-    | (InitAddr s) :: xs -> raise Todo
+    | (WASM w) :: xs -> (match w with
+                         | W.Const _ -> w :: asm xs { st with stack = "!__const__!" :: st.stack } wf
+                         | _ -> w :: asm xs st wf)
+    | (GetAddr s) :: xs ->
+            (match st.stack with
+             | v :: ss when String.equal v s -> asm xs st wf (* already on top of stack *)
+             | _ -> (match List.findi st.locals ~f:(fun _i v -> String.equal s v) with
+                     | Some (i, _) -> (W.LocalGet (to_wasm_imm i)) :: asm xs st wf
+                     | None -> raise Todo (* probably err *)))
+    | (InitAddr s) :: xs ->
+            let i = W.Const (to_wasm_int 0 |> to_region) in (* TODO: call alloc *)
+            let stack = s :: st.stack in
+            i :: asm xs { st with stack } wf
+    | (Call (p, _ps)) :: xs -> (* parms should already be pushed *)
+            let proc_ls = Map.to_alist env.procs in
+            let (idx, _) = List.findi_exn proc_ls ~f:(fun _i (p', _) -> String.equal p p') in
+            (W.Call (to_wasm_imm idx)) :: asm xs st wf (* TODO: update st? *)
     in
 
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
@@ -141,10 +158,10 @@ let compiler (env : compile_env) =
                           | S.Write (v, S.InjPat (l, v')) when String.equal dest_var v && List.exists ls ~f:(fun (l', _) -> String.equal l l') ->
                                 let tag_idx = List.findi ls ~f:(fun i (l', _) -> String.equal l l') |> Option.value_exn |> fst in
                                 let push_idx = WASM (W.Const (to_region @@ to_wasm_int tag_idx)) in
-                                ([push_idx; GetAddr v'], ())
+                                ([GetAddr v'; push_idx], ())
                           | _ -> raise TypeError)
             | _ -> raise Todo)
     in
 
-    compile_dest
+    (compile_dest, asm)
     (*| Times (lt, rt) ->*)
