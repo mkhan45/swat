@@ -46,16 +46,20 @@ let rec sizeof (t : S.tp) : int = match t with
 | Plus ls -> 1 + (List.fold ls ~init:0 ~f:(fun max_size (_, t) -> Int.max max_size (sizeof t)))
 | TpName _ -> 1
 
-type macro_inst = GetAddr of string
-                | InitAddr of string
-                | Move of (string * string)
+type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
+                | InitAddr of string (* allocates a cell with name *)
+                | AliasInj of (string * string)
+                | AliasPair of (string * (string * string))
+                | Move of (string * string) (* moves values between refs *)
                 | Call of (string * string list)
-                | Switch of ((int * (macro_inst list)) list)
+                | Switch of ((int * (macro_inst list)) list) (* switches on top of stack *)
                 | WASM of W.instr'
 
 let rec print_macro_inst = function
 | GetAddr s -> Printf.printf "Get %s\n" s
 | InitAddr s -> Printf.printf "Init %s\n" s
+| AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
+| AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s" l r p
 | Move (l, r) -> Printf.printf "Move %s to %s\n" l r
 | Call (p, ps) -> Printf.printf "Call %s (%s)\n" p (String.concat ~sep:", " ps)
 | Switch ls -> 
@@ -108,17 +112,20 @@ let compiler (env : compile_env) =
                       ([], wasm_func)
               | Times (lt, rt) -> 
                       (match bs with
-                       | [PairPat (lv, rv), b] -> raise Todo
+                       | [PairPat (lv, rv), b] -> 
+                               let inner_env = vars |> Map.set ~key:lv ~data:lt |> Map.set ~key:rv ~data:rt in
+                               let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
+                               ((AliasPair (v, (lv, rv)) :: is), wasm_func)
                        | _ -> raise BadMatch)
               | Plus ls -> 
                       let bs = List.map bs ~f:(function (InjPat (l, v), b) -> (l, (v, b)) | _ -> raise BadMatch) in
                       let cases = List.map ls ~f:(fun (l, t) -> (l, List.Assoc.find_exn bs l ~equal:String.equal)) in
-                      let case_instrs = List.mapi cases ~f:(fun i (l, (v, b)) -> 
-                          let inner_env = Map.set vars ~key:v ~data:(List.Assoc.find_exn ls l ~equal:String.equal) in
+                      let case_instrs = List.mapi cases ~f:(fun i (l, (v', b)) -> 
+                          let inner_env = Map.set vars ~key:v' ~data:(List.Assoc.find_exn ls l ~equal:String.equal) in
                           let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
-                          (i, is))
+                          (i, (AliasInj (v, v')) :: is))
                       in
-                      ([Switch case_instrs], wasm_func))
+                      ([GetAddr v; Switch case_instrs], wasm_func))
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in
