@@ -59,6 +59,10 @@ let is_addr s = function
 | Addr s' when String.equal s s' -> true
 | _ -> false
 
+let add_rel (graph : addr_graph) ~(addr : string) ~(rel : addr_rel) : addr_graph = match Map.find graph addr with
+| Some ls -> Map.set graph ~key:addr ~data:(rel :: ls)
+| None -> Map.set graph ~key:addr ~data:[rel]
+
 type asm_state = { stack : stack_val list; locals : stack_val list; addrs : addr_graph }
 
 type winsts = W.instr' list
@@ -109,6 +113,11 @@ let compiler (env : compile_env) =
     | [] -> []
     | (PushUnit s) :: xs -> (W.Const (to_wasm_int 0 |> to_region)) :: asm xs { st with stack = (Unit s) :: st.stack } wf
     | (PushTag (i, s)) :: xs -> (W.Const (to_wasm_int i |> to_region)) :: asm xs { st with stack = (InjTag s) :: st.stack } wf
+    | (AliasInj (src, dst)) :: xs ->
+            let src_addr_rel = Inj dst in
+            let dst_addr_rel = InjVal src in
+            let graph = st.addrs |> add_rel ~addr:src ~rel:src_addr_rel |> add_rel ~addr:dst ~rel:dst_addr_rel in
+            asm xs { st with addrs = graph } wf
     | (GetAddr s) :: xs ->
             (match st.stack with
              | (Addr v) :: ss when String.equal v s -> asm xs st wf (* already on top of stack *)
@@ -134,6 +143,7 @@ let compiler (env : compile_env) =
                  | Plus _ -> (InjTag d) :: (InjData d) :: rest)
             in
             (W.Call (to_wasm_imm idx)) :: asm xs { st with stack } wf
+     | (Switch ls) :: xs -> raise Todo
     in
 
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
