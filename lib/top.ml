@@ -45,9 +45,10 @@ let main () =
                 List.iter insts ~f:Compiler.print_macro_inst;
                 Compiler.print_func_env e;
                 let st =
-                    let locals = List.map a ~f:fst in
-                    let stack = locals in
-                    Compiler.{ stack ; locals }
+                    let locals = List.map a ~f:(fun (v, _t) -> Compiler.Addr v) in
+                    let stack = [] in
+                    let addrs = Map.of_alist_exn (module String) @@ List.map a ~f:(fun (v, _t) -> (v, [])) in
+                    Compiler.{ stack ; locals; addrs }
                 in
                 let wasm = asm insts st e in
                 Printf.printf "WASM:\n";
