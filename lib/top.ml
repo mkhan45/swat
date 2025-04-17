@@ -36,7 +36,8 @@ let main () =
     let print_string s = output_string out_channel s in
     let type_names = env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None) |> Map.of_alist_exn (module String) in
     let procs = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) |> Map.of_alist_exn (module String) in
-    let (compile_dest, asm) = Compiler.(compiler { type_names; procs }) in
+    let compile_env = Compiler.{ type_names; procs } in
+    let (compile_dest, asm) = Compiler.compiler compile_env in
     List.iter env ~f:(function
         | A.ProcDefn (n, d, a, b) -> 
                 Printf.printf "proc %s:\n" n;

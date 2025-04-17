@@ -1,0 +1,15 @@
+# General structure
+
+The stack has stack_vals. Some stack vals are named addresses, some are components. But some components
+might also be addresses themselves. So we build a graph.
+
+dest is the top of the stack.
+
+# TODO
+
+1. Needed annotations for wasm_func_env:
+    - Used out of cut order (to make locals)
+    - Deref'd args
+        - if an arg is deref'd/Read in all cases, make two locals for it instead of just the addr
+        - conversely, if a cut variable is Read in all cases, we don't have to allocate it
+2. negative polarity
