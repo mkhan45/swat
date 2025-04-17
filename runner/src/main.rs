@@ -18,7 +18,7 @@ fn main() {
             unsafe {
                 let sz = mem.data_size(&store) / 4;
                 for i in 0..sz {
-                    *((mem_ptr as *mut i32).add(i)) = 2;
+                    *((mem_ptr as *mut i32).add(i)) = 8;
                 }
             }
             *store.data_mut() = (mem_ptr, 0);
@@ -27,19 +27,19 @@ fn main() {
             let print_i32 = Func::wrap(&mut store, |x: i32| println!("{x}"));
             let alloc = Func::wrap(&mut store, |mut caller: Caller<'_, (*mut u8, i32)>, v1: i32, v2: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
-                let base = (*base) as *mut i32;
-                let cur_ptr = base.add(*cur as usize);
+                let res = *cur;
+                let cur_ptr = base.add(*cur as usize) as *mut i32;
                 let next_free = *cur_ptr;
                 *cur_ptr = v1;
                 *(cur_ptr.add(1)) = v2;
-                let res = *cur;
                 *cur += next_free;
 
                 let mut fl = vec![];
                 let mut fl_ptr = *cur;
+                let i32_arr = *base as *mut i32;
                 for _ in 0..10 {
                     fl.push(fl_ptr);
-                    let next_offs = *base.add(fl_ptr as usize);
+                    let next_offs = *i32_arr.add(fl_ptr as usize);
                     fl_ptr += next_offs;
                 }
                 println!("Alloc'd {res} with ({v1},{v2}) {:?}", fl);

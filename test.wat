@@ -1,5 +1,8 @@
 (module
   (import "" "" (func $print_i32 (param i32)))
+  (import "" "" (memory $mem 1))
+  (import "" "" (func $alloc (param i32) (result i32)))
+  (import "" "" (func $free (param i32)))
 
   (func (export "main") (param i32 i32) (result i32)
     ;; fn x => sum(0..x)

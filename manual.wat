@@ -1,3 +1,42 @@
 (module
   (import "" "" (func $print_i32 (param i32)))
+  (import "" "" (memory $mem 1))
+  (import "" "" (func $alloc (param i32 i32) (result i32)))
+  (import "" "" (func $free (param i32)))
+
+  (func $add (export "add") (param i32 i32) (result i32)
+    (block (result i32)
+      (block (result i32) (block (result i32) (i32.const 0) (local.get 1) (i32.load 0 offset=4) (br_table 0 1 0)) (local.get 0) (br 1))
+      (local.get 0)
+      (local.get 1)
+      (i32.load 0)
+      (call $add)
+      (call $succ)
+      (br 0)
+    )
+    )
+
+  (func $two (export "two") (result i32)
+    (call $one)
+    (call $succ)
+   )
+
+  (func $one (export "one") (result i32)
+    (call $zero)
+    (call $succ)
+   )
+
+  (func $succ (export "succ") (param i32) (result i32)
+    (local.get 0)
+    (i32.const 1)
+    (call $alloc))
+
+  (func $zero (export "zero") (result i32)
+    (i32.const 0)
+    (i32.const 0)
+    (call $alloc))
+
+  (func (export "main") (param i32 i32) (result i32)
+        (call $add (call $two) (call $two))
+  )
 )

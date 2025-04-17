@@ -44,7 +44,6 @@ let print_func_env env = ()
     (*let addr_s = String.concat ~sep:", " (List.map addr_ls ~f:(fun (s, a) -> s ^ ":" ^ (addr_to_string a))) in*)
     (*Printf.printf "addrs: { %s }\nstacklen: %d" addr_s env.stacklen*)
 
-
 type stack_val = Addr of string
                | InjTag of string
                | InjData of string
@@ -126,6 +125,7 @@ let compiler (env : compile_env) =
         (* TODO: proper search *)
         let rec get_addr (s : string) : W.instr' list = match st.stack with
         | (Addr v) :: _ when String.equal v s -> [] (* already on top of stack *)
+        | (Unit v) :: _ when String.equal v s -> [] (* already on top of stack *)
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_addr s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None ->
@@ -168,11 +168,13 @@ let compiler (env : compile_env) =
                                    | is -> is @ asm xs { st with stack = (InjTag s) :: st.stack } wf)
         | (InitAddr s) :: xs ->
                 (* don't alloc until write *)
-                let i = W.Const (to_wasm_int 42 |> to_region) in (* TODO: call alloc *)
-                if Set.mem !(wf.need_local) s then Printf.printf "%s needs local\n" s;
                 (match st.stack with
-                 | (Unit _) :: rest -> i :: asm xs { st with stack = (Addr s) :: rest } wf
-                 | _ :: _ :: rest -> i :: asm xs { st with stack = (Addr s) :: rest } wf)
+                 | (Unit _) :: rest -> asm xs st wf
+                 | (Addr s') :: rest when String.equal s s' -> asm xs st wf (* dont need to alloc *)
+                 | _ :: _ :: rest ->
+                        let i = W.Const (to_wasm_int 42 |> to_region) in (* TODO: call alloc *)
+                        if Set.mem !(wf.need_local) s then Printf.printf "%s needs local\n" s;
+                        i :: asm xs { st with stack = (Addr s) :: rest } wf)
         | (Call (p, d, _ps)) :: xs -> (* parms should already be pushed *)
                 let proc_ls = Map.to_alist env.procs in
                 let (idx, proc) = List.findi_exn proc_ls ~f:(fun _i (p', _) -> String.equal p p') in
@@ -180,10 +182,11 @@ let compiler (env : compile_env) =
                 let stack =
                     let popn = List.length proc_parms in
                     let rest = List.drop st.stack popn in
-                    (match (fix proc_dest_tp) with
-                     | One -> (Unit d) :: rest
-                     | Times (_, _) -> (PairSnd d) :: (PairFst d) :: rest
-                     | Plus _ -> (InjTag d) :: (InjData d) :: rest)
+                    (Addr d) :: rest
+                    (*(match (fix proc_dest_tp) with*)
+                    (* | One -> (Unit d) :: rest*)
+                    (* | Times (_, _) -> (PairSnd d) :: (PairFst d) :: rest*)
+                    (* | Plus _ -> (InjTag d) :: (InjData d) :: rest)*)
                 in
                 (W.Call (to_wasm_imm idx)) :: asm xs { st with stack } wf
          | (Switch (s, ls)) :: xs ->
