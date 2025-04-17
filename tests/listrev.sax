@@ -1,0 +1,16 @@
+type bin = +{'b0 : bin, 'b1 : bin, 'e : 1}
+type list = +{'nil : 1, 'cons : bin * list}
+
+proc reverse (d : list) (l : list) (acc : list) =
+    read l {
+    | 'nil(u) => 
+        read u ()
+            id d acc
+    | 'cons(ls) => 
+        read ls (hd, tl)
+            cut new : list
+                cut new_p : bin * list
+                    write new_p (hd, acc)
+                write new 'cons(new_p)
+            call reverse d tl new
+    }

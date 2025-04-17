@@ -70,6 +70,14 @@ let is_tag s = function
 | InjTag s' when String.equal s s' -> true
 | _ -> false
 
+let is_fst (s : string) : stack_val -> bool = function
+| PairFst s' when String.equal s s' -> true
+| _ -> false
+
+let is_snd (s : string) : stack_val -> bool = function
+| PairSnd s' when String.equal s s' -> true
+| _ -> false
+
 let add_rel (graph : addr_graph) ~(addr : string) ~(rel : addr_rel) : addr_graph = match Map.find graph addr with
 | Some ls -> Map.set graph ~key:addr ~data:(rel :: ls)
 | None -> Map.set graph ~key:addr ~data:[rel]
@@ -102,7 +110,7 @@ let rec print_macro_inst = function
 | PushUnit s -> Printf.printf "PushUnit %s\n" s
 | InitAddr s -> Printf.printf "Init %s\n" s
 | AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
-| AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s" l r p
+| AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s\n" l r p
 | Move (l, r) -> Printf.printf "Move %s to %s\n" r l
 | Call (p, d, ps) -> Printf.printf "Call %s (%s) into %s\n" p (String.concat ~sep:", " ps) d
 | Switch (s, ls) -> 
@@ -132,6 +140,8 @@ let compiler (env : compile_env) =
                     let res = Option.bind (Map.find st.addrs s) ~f:(fun rels ->
                         List.find_map rels ~f:(function
                         | InjVal s -> Some (get_inj s)
+                        | PairFst s -> Some (get_fst s)
+                        | PairSnd s -> Some (get_snd s)
                         | _ -> None))
                     in
                     match res with
@@ -149,7 +159,20 @@ let compiler (env : compile_env) =
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_tag s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_fst] )
+
+        and get_fst (s : string) : W.instr' list = match st.stack with
+        | (PairFst v) :: _ when String.equal v s -> [] (* already on top of stack *)
+        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_fst s v) with
+                | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
+                | None -> (get_addr s) @ [wasm_load_fst] )
+
+        and get_snd (s : string) : W.instr' list = match st.stack with
+        | (PairFst v) :: _ when String.equal v s -> [] (* already on top of stack *)
+        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_snd s v) with
+                | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
+                | None -> (get_addr s) @ [wasm_load_snd] )
         in
+
         match ms with
         | [] -> []
         | (PushUnit s) :: xs -> (W.Const (to_wasm_int 0 |> to_region)) :: asm xs { st with stack = (Unit s) :: st.stack } wf
@@ -160,6 +183,23 @@ let compiler (env : compile_env) =
                 let dst_addr_rel = InjVal src in
                 let graph = st.addrs |> add_rel ~addr:src ~rel:src_addr_rel |> add_rel ~addr:dst ~rel:dst_addr_rel in
                 asm xs { st with addrs = graph } wf
+        | (AliasPair (src, (fst, snd))) :: xs ->
+                let src_addr_rel = Pair (fst, snd) in
+                let fst_addr_rel = PairFst src in
+                let snd_addr_rel = PairSnd src in
+                let graph = st.addrs 
+                            |> add_rel ~addr:src ~rel:src_addr_rel 
+                            |> add_rel ~addr:fst ~rel:fst_addr_rel 
+                            |> add_rel ~addr:fst ~rel:snd_addr_rel
+                in
+                let need_locals = (Set.mem !(wf.need_local) fst) || (Set.mem !(wf.need_local) snd) in
+                begin if need_locals then
+                    (* maybe non-tail recurse, add GetAddr etc to front
+                       should also probably have GetFst and GetSnd *)
+                    raise TODO
+                else
+                    asm xs { st with addrs = graph } wf
+                end
         | (GetAddr s) :: xs -> (match get_addr s with
                                 | [] -> asm xs st wf (* already on stack *)
                                 | is -> is @ asm xs { st with stack = (Addr s) :: st.stack } wf)
