@@ -92,7 +92,7 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | AliasPair of (string * (string * string))
                 | Move of (string * string) (* moves values between refs *)
                 | Call of (string * string * string list)
-                | Switch of ((int * (macro_inst list)) list) (* switches on top of stack *)
+                | Switch of (string * (int * (macro_inst list)) list) (* switches on top of stack *)
                 | PushTag of (int * string)
                 | PushUnit of string
 
@@ -106,8 +106,8 @@ let rec print_macro_inst = function
 | AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s" l r p
 | Move (l, r) -> Printf.printf "Move %s to %s\n" r l
 | Call (p, d, ps) -> Printf.printf "Call %s (%s) into %s\n" p (String.concat ~sep:", " ps) d
-| Switch ls -> 
-        Printf.printf "Switch\n";
+| Switch (s, ls) -> 
+        Printf.printf "Switch (%s)\n" s;
         List.iter ls ~f:(fun (i, is) ->
             Printf.printf "Case %d:\n" i;
             List.iter is ~f:print_macro_inst)
@@ -142,13 +142,13 @@ let compiler (env : compile_env) =
         | (InjTag v) :: _ when String.equal v s -> [] (* already on top of stack *)
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_tag s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
-                | None -> (get_addr s) @ [wasm_load_fst] )
+                | None -> (get_addr s) @ [wasm_load_snd] )
 
         and get_inj (s : string) : W.instr' list = match st.stack with
         | (InjData v) :: _ when String.equal v s -> [] (* already on top of stack *)
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_tag s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
-                | None -> (get_addr s) @ [wasm_load_snd] )
+                | None -> (get_addr s) @ [wasm_load_fst] )
         in
         match ms with
         | [] -> []
@@ -186,12 +186,16 @@ let compiler (env : compile_env) =
                      | Plus _ -> (InjTag d) :: (InjData d) :: rest)
                 in
                 (W.Call (to_wasm_imm idx)) :: asm xs { st with stack } wf
-         | (Switch ls) :: xs ->
+         | (Switch (s, ls)) :: xs ->
+                 let get_tag_instrs = get_tag s in
                  let n = List.length ls in
-                 let br_table = W.BrTable (List.(range 0 n |> map ~f:to_wasm_imm), (to_wasm_imm 0)) in
-                 let inner_st = { st with stack = List.tl_exn st.stack } in
+                 let bt = W.ValBlockType None in (* TODO: blocktype *) 
+                 let br_table = W.Block (bt, get_tag_instrs @ [W.BrTable (List.(range 0 n |> map ~f:to_wasm_imm), (to_wasm_imm 0))] |> List.map ~f:to_region) in
+                 let inner_st = match get_tag_instrs with
+                 | [] -> { st with stack = List.tl_exn st.stack } 
+                 | _ -> st (* tag was not there, so it was pushed, and then popped by br table *)
+                 in
                  let switch = List.fold ls ~init:br_table ~f:(fun acc (i, is) -> 
-                     let bt = W.ValBlockType None in (* TODO: blocktype *) 
                      W.Block (bt, (acc :: asm is inner_st wf @ [Br (to_wasm_imm @@ n - i - 1)]) |> List.map ~f:to_region))
                  in
                  switch :: asm xs inner_st wf
@@ -258,7 +262,7 @@ let compiler (env : compile_env) =
                           let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
                           (i, (AliasInj (v, v')) :: is))
                       in
-                      ([GetAddrTag v; Switch case_instrs], wasm_func))
+                      ([Switch (v, case_instrs)], wasm_func))
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in
