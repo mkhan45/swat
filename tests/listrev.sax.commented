@@ -1,0 +1,35 @@
+type bin = +{'b0 : bin, 'b1 : bin, 'e : 1}
+type list = +{'nil : 1, 'cons : bin * list}
+
+proc reverse (d : list) (l : list) (acc : list) =
+    read l {
+    | 'nil(u) => 
+        read u ()
+            id d acc
+    | 'cons(ls) => 
+        read ls (hd, tl)
+            cut new : list
+                cut new_p : bin * list
+                    write new_p (hd, acc)
+                write new 'cons(new_p)
+            call reverse d tl new
+    }
+
+(block
+  (block (block (local.get 0) (i32.load 0 offset=4) (br_table 0 1 0)) (local.get 1) (br 1))
+  (local.get 0) ; get hd -> push &ls to stack 
+  (i32.load 0) ; get hd -> deref ls onto stack
+  (i32.load 0) ; get hd -> deref ls again and get fst
+  (local.get 1) ; get acc
+  (i32.const 42) ; alloc new_p = (hd, acc)
+  (i32.const 1) ; pushtag new
+  (i32.const 42) ; alloc new = 'cons(new_p) = 'cons(hd, acc)
+  (local.set 2) ; put new in local 2
+  (local.get 0) ; get tl -> push &ls to stack
+  (i32.load 0) ; get tl -> deref ls onto stack
+  (i32.load 0 offset=4) ; get tl -> deref ls and get snd
+  (local.get 2) ; get new
+  (call 0) ; recurse
+  (br 0)
+)
+

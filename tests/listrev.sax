@@ -14,3 +14,13 @@ proc reverse (d : list) (l : list) (acc : list) =
                 write new 'cons(new_p)
             call reverse d tl new
     }
+
+proc empty (d : list) =
+    cut u : 1
+        write u ()
+    write d 'nil(u)
+
+proc prepend (d : list) (ls : list) (n : nat) =
+    cut p : nat * list
+        write p (ls, n)
+    write d 'cons(p)

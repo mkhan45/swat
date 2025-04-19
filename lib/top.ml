@@ -49,7 +49,8 @@ let main () =
                     let locals = List.map a ~f:(fun (v, _t) -> Compiler.Addr v) in
                     let stack = [] in
                     let addrs = Map.of_alist_exn (module String) @@ List.map a ~f:(fun (v, _t) -> (v, [])) in
-                    Compiler.{ stack ; locals; addrs }
+                    let free_locals = [] in
+                    Compiler.{ stack ; locals; addrs; free_locals }
                 in
                 let wasm = asm insts st e in
                 Printf.printf "WASM:\n";
