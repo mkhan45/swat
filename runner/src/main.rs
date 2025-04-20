@@ -1,4 +1,21 @@
 use wasmtime::*;
+use json::JsonValue;
+
+unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, ptr: i32) -> String {
+    match tp {
+        JsonValue::Null => "()".to_string(),
+        JsonValue::Object(cases) => {
+            let val_ptr = mem_ptr.add(ptr as usize) as *const i32;
+            let inj = *val_ptr;
+            let tag = *(val_ptr.add(1));
+            let (inj_tag, inj_tp) = cases.iter().nth(tag as usize).unwrap();
+            format!("'{inj_tag}({})", val_to_string(mem_ptr, json, inj_tp, inj))
+        }
+        JsonValue::Array(pair) => todo!(),
+        JsonValue::String(tpname) => todo!(),
+        _ => unreachable!(),
+    }
+}
 
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
@@ -62,17 +79,19 @@ fn main() {
 
             let module = Module::from_file(store.engine(), f).unwrap();
             let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+
             let serialize_types = instance.get_typed_func::<(), i32>(&mut store, "serialize_types").unwrap();
             let len = serialize_types.call(&mut store, ()).unwrap();
             let string = unsafe { std::str::from_utf8(std::slice::from_raw_parts(mem_ptr as *const u8, len as usize)).unwrap().to_string() };
             let types_json = json::parse(&string).unwrap();
-            println!("types: {types_json}");
-            let bin = &types_json["bin"];
-            println!("bin: {bin}");
 
-            let print_val = Func::wrap(&mut store, |ptr: i32| {
+            let print_val = Func::wrap(&mut store, move |caller: Caller<'_, (*mut u8, i32)>, tp_idx: i32, ptr: i32| unsafe {
+                let (base, _) = caller.data();
+                let tp = &types_json[tp_idx as usize];
+                println!("{}", val_to_string(*base, &types_json, &tp, ptr));
             });
 
+            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
             unsafe {
                 let sz = mem.data_size(&store) / 4;
                 for i in 0..sz {
