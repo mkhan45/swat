@@ -15,12 +15,6 @@ fn main() {
 
             let mem = Memory::new(&mut store, MemoryType::new(1, None)).unwrap();
             let mem_ptr = mem.data_ptr(&store);
-            unsafe {
-                let sz = mem.data_size(&store) / 4;
-                for i in 0..sz {
-                    *((mem_ptr as *mut i32).add(i)) = 8;
-                }
-            }
             *store.data_mut() = (mem_ptr, 0);
 
             // TODO: figure out when returning wasm addrs, i32 offsets
@@ -64,9 +58,28 @@ fn main() {
                 }
                 println!("Free'd {offs} {:?}", fl);
             });
+            let print_val = Func::wrap(&mut store, |ptr: i32| ());
 
             let module = Module::from_file(store.engine(), f).unwrap();
-            let instance = Instance::new(&mut store, &module, &[print_i32.into(), mem.into(), alloc.into(), free.into()]).unwrap();
+            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            let serialize_types = instance.get_typed_func::<(), i32>(&mut store, "serialize_types").unwrap();
+            let len = serialize_types.call(&mut store, ()).unwrap();
+            let string = unsafe { std::str::from_utf8(std::slice::from_raw_parts(mem_ptr as *const u8, len as usize)).unwrap().to_string() };
+            let types_json = json::parse(&string).unwrap();
+            println!("types: {types_json}");
+            let bin = &types_json["bin"];
+            println!("bin: {bin}");
+
+            let print_val = Func::wrap(&mut store, |ptr: i32| {
+            });
+
+            unsafe {
+                let sz = mem.data_size(&store) / 4;
+                for i in 0..sz {
+                    *((mem_ptr as *mut i32).add(i)) = 8;
+                }
+            }
+
             let main = instance.get_typed_func::<(i32, i32), i32>(&mut store, "main").unwrap();
             let res = main.call(&mut store, (5, 0)).unwrap();
             println!("{res}");
