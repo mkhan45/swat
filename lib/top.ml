@@ -34,12 +34,14 @@ let main () =
 (*  let () = print_string (A.Print.pp_env env) in *)
     let out_channel = open_out ((List.hd_exn args) ^ ".val") in
     let print_string s = output_string out_channel s in
-    let type_names = env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None) |> Map.of_alist_exn (module String) in
+    let type_ls = env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None) in
+    let type_names = type_idxs |> Map.of_alist_exn (module String) in
     let procs = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) |> Map.of_alist_exn (module String) in
+    let tags = Wasm_print.prog_tags env in
     let compile_env = Compiler.{ type_names; procs } in
     let (compile_dest, asm) = Compiler.compiler compile_env in
-    List.iter env ~f:(function
-        | A.ProcDefn (n, d, a, b) -> 
+    List.iter (procs |> Map.to_alist) ~f:(function
+        (n, (d, a, b)) -> 
                 Printf.printf "proc %s:\n" n;
                 let vars = Map.of_alist_exn (module String) a in
                 let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars Compiler.empty_func_env in
@@ -57,7 +59,6 @@ let main () =
                 List.iter wasm ~f:(fun i -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region i);
                 Printf.printf "\n";
                 ()
-        | _ -> ()
     );
     (*let _ = eval_and_print print_string env in*)
     (*let _ = close_out out_channel in*)

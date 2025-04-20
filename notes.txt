@@ -13,3 +13,4 @@ dest is the top of the stack.
         - if an arg is deref'd/Read in all cases, make two locals for it instead of just the addr
         - conversely, if a cut variable is Read in all cases, we don't have to allocate it
 2. negative polarity
+3. I think we only have to allocate variables which are used as arguments.

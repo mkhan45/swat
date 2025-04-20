@@ -1,0 +1,11 @@
+type nat = +{ 'zero : 1, 'succ : nat }
+
+proc pred (d : nat) (x : nat) =
+    cut z : nat
+        id z x
+    read z {
+    | 'zero(u) => cut w : 1
+                    id w u
+                  write d 'zero(w)
+    | 'succ(y) => id d y
+    }

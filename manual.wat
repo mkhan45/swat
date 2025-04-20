@@ -73,6 +73,6 @@
 
   (func (export "main") (param i32 i32) (result i32)
         ;; (call $add (call $two) (call $two))
-        (call $prepend (call $prepend (call $empty) (call $one)) (call $two))
+        (call $listrev (call $prepend (call $prepend (call $empty) (call $one)) (call $two)) (call $empty))
   )
 )

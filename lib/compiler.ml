@@ -22,7 +22,30 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type compile_env = { type_names : type_name_map; procs : proc_map }
+type compile_env = { type_names : type_name_map; procs : proc_map; tags : (string * int) list }
+
+type type_idx_map = {
+    i32_to_unit : int; (* print *)
+    i32_to_i32  : int; (* alloc, sax functions currently *)
+    i32_to_pair : int; (* sax functions eventually *)
+}
+let type_idxs = {
+    i32 : 0;
+    i32_to_unit : 1;
+    i32_to_i32 : 2;
+    i32_to_pair : 3;
+}
+
+type fn_idx_map = {
+    alloc : int;
+    free : int;
+    print_val : int
+}
+
+let fn_idxs (types : (string, A.tp list)) : fn_idx_map = {
+    alloc = 0; free = 1; print_inj = 2; print_pair = 3; print_i32 = 4; print_unit = 5;
+    printers = List.range 6 (List.length types + 1)
+}
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t
 
@@ -159,6 +182,8 @@ let compiler (env : compile_env) =
                     | Some is -> is
                     | _ -> raise Todo)
 
+        (* TODO: any case that loads should load the whole thing instead of just components,
+                 and then free the addr. If we're loading the fst, it should load in backwards order *)
         and get_tag (s : string) : W.instr' list = match st.stack with
         | (InjTag v) :: _ when String.equal v s -> [] (* already on top of stack *)
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_tag s v) with
@@ -240,6 +265,7 @@ let compiler (env : compile_env) =
                         else
                             asm xs st wf
                  | _ :: _ :: rest ->
+                        (* TODO: if this addr is Read in the current function, don't allocate *)
                         let i = W.Const (to_wasm_int 42 |> to_region) in (* TODO: call alloc *)
                         let stack = (Addr s) :: rest in
                         if Set.mem !(wf.need_local) s then
@@ -306,6 +332,8 @@ let compiler (env : compile_env) =
         | S.Id (l, r) ->
               (* TODO: typecheck *)
               (* TODO: since dest is just the top of the stack, I think this is just GetAddr *)
+              (* TODO: except that we need to propagate the info to asm, so make an Alias command.
+                       in asm, we can just GetAddr r and then add to graph *)
               (* update_need_local wasm_func [r]; *)
               ([GetAddr r], wasm_func)
               (* ([Move (l, r)], wasm_func) *)
@@ -314,6 +342,7 @@ let compiler (env : compile_env) =
               update_need_local wasm_func ps;
               (gets @ [Call (p, d, ps)], wasm_func)
         | S.Read (v, bs) ->
+              (* TODO: read both parts instead of just the tag, so that we can instantly free it *)
               update_need_local wasm_func [v];
               let subj_tp = Map.find_exn vars v |> fix in
               let wasm_func = if Set.mem !(wasm_func.need_local) v then wasm_func else { wasm_func with cuts = List.tl wasm_func.cuts |> Option.value ~default:[] } in
@@ -329,6 +358,7 @@ let compiler (env : compile_env) =
                        | [PairPat (lv, rv), b] -> 
                                let inner_env = vars |> Map.set ~key:lv ~data:lt |> Map.set ~key:rv ~data:rt in
                                let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
+                               (* TODO: *)
                                ((AliasPair (v, (lv, rv)) :: is), wasm_func)
                        | _ -> raise BadMatch)
               | Plus ls -> 
