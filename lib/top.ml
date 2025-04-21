@@ -81,31 +81,43 @@ let main () =
     let print_string s = output_string out_channel s in
     let type_ls = env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None) in
     let type_names = type_ls |> Map.of_alist_exn (module String) in
-    let procs = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) |> Map.of_alist_exn (module String) in
+    let proc_ls = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) in
+    let procs = proc_ls |> Map.of_alist_exn (module String) in
     let printer = Wasm_print.mk_printer type_ls in
     (*let tags = Wasm_print.prog_tags env in*)
-    let compile_env = Compiler.{ type_names; procs } in
+    let compile_env = Compiler.{ type_names; procs; proc_ls = proc_ls |> List.map ~f:fst } in
     let (compile_dest, asm) = Compiler.compiler compile_env in
-    let funcs = List.map (procs |> Map.to_alist) ~f:(function
-        (n, (d, a, b)) -> 
-                Printf.printf "proc %s:\n" n;
-                let vars = Map.of_alist_exn (module String) a in
-                let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars Compiler.empty_func_env in
-                List.iter insts ~f:Compiler.print_macro_inst;
-                Compiler.print_func_env e;
-                let st =
-                    let locals = List.map a ~f:(fun (v, _t) -> Compiler.Addr v) in
-                    let stack = [] in
-                    let addrs = Map.of_alist_exn (module String) @@ List.map a ~f:(fun (v, _t) -> (v, [])) in
-                    let free_locals = [] in
-                    Compiler.{ stack ; locals; addrs; free_locals }
-                in
-                let wasm = asm insts st e in
-                W.{ ftype = Compiler.to_wasm_imm 2; locals = []; body = wasm |> List.map ~f:Compiler.to_region }
-                (*Printf.printf "WASM:\n";*)
-                (*List.iter wasm ~f:(fun i -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region i);*)
-                (*Printf.printf "\n";*)
-                (*()*)
+    let funcs = List.map proc_ls ~f:(fun (n, (d, a, b)) ->
+        Printf.printf "proc %s:\n" n;
+        let vars = Map.of_alist_exn (module String) a in
+        let func_env = Compiler.empty_func_env () in
+        func_env.need_local := Set.empty (module String);
+        let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars func_env in
+        List.iter insts ~f:Compiler.print_macro_inst;
+        Compiler.print_func_env e;
+        let st =
+            let locals = List.map a ~f:(fun (v, _t) -> Compiler.Addr v) in
+            let stack = [] in
+            let addrs = Map.of_alist_exn (module String) @@ List.map a ~f:(fun (v, _t) -> (v, [])) in
+            let free_locals = [] in
+            Compiler.{ stack ; locals; addrs; free_locals }
+        in
+        let wasm = (asm insts st e) @ [W.Call (Compiler.to_wasm_imm 0)] in
+        let locals =
+            let nlocals = (Set.length !(func_env.need_local)) - (List.length a) in
+            List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region))
+        in
+        (* TODO: generate types *)
+        let ftype = match List.length a with
+        | 0 -> Compiler.type_idxs.unit_to_i32
+        | 1 -> Compiler.type_idxs.i32_to_i32
+        | 2 -> Compiler.type_idxs.pair_to_i32
+        in
+        W.{ ftype = Compiler.to_wasm_imm ftype; locals; body = wasm |> List.map ~f:Compiler.to_region }
+        (*Printf.printf "WASM:\n";*)
+        (*List.iter wasm ~f:(fun i -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region i);*)
+        (*Printf.printf "\n";*)
+        (*()*)
     )
     in
     let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] in

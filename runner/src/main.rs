@@ -8,6 +8,7 @@ unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, pt
         _ => tp
     };
 
+    dbg!(tp.to_string(), ptr);
     match tp {
         JsonValue::Null => "()".to_string(),
         JsonValue::Object(cases) => {
@@ -19,8 +20,8 @@ unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, pt
         }
         JsonValue::Array(pair) => {
             let val_ptr = mem_ptr.add(ptr as usize) as *const i32;
-            let fst = *val_ptr.add(1);
-            let snd = *(val_ptr.add(0));
+            let fst = *(val_ptr.add(0));
+            let snd = *(val_ptr.add(1));
             let fst_tp = &pair[0];
             let snd_tp = &pair[1];
             format!("({}, {})", val_to_string(mem_ptr, json, fst_tp, fst), val_to_string(mem_ptr, json, snd_tp, snd))

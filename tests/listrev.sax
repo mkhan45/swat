@@ -22,5 +22,29 @@ proc empty (d : list) =
 
 proc prepend (d : list) (ls : list) (n : nat) =
     cut p : nat * list
-        write p (ls, n)
+        write p (n, ls)
     write d 'cons(p)
+
+proc zero (d : bin) =
+    cut u : 1
+        write u ()
+    cut e : bin
+        write e 'e(u)
+    write d 'b0(e)
+
+proc one (d : bin) =
+    cut u : 1
+        write u ()
+    cut e : bin
+        write e 'e(u)
+    write d 'b1(e)
+
+proc two (d : bin) =
+    cut z : 1
+        call zero z
+    write d 'b1(z)
+
+proc three (d : bin) =
+    cut o : 1
+        call one o
+    write d 'b1(o)

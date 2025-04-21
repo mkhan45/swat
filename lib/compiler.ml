@@ -22,7 +22,7 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type compile_env = { type_names : type_name_map; procs : proc_map }
+type compile_env = { type_names : type_name_map; procs : proc_map; proc_ls : string list }
 
 type type_idx_map = {
     unit_fn : int;
@@ -49,7 +49,7 @@ type fn_idx_map = {
     print_val : int
 }
 
-let fn_idxs (types : (string * S.tp) list) : fn_idx_map = {
+let fn_idxs : fn_idx_map = {
     alloc = 0; free = 1; print_val = 2
 }
 
@@ -67,7 +67,7 @@ type addr_map = (string, wasm_addr, String.comparator_witness) Map.t
 type string_set = (string, String.comparator_witness) Set.t
 
 type wasm_func_env = { cuts : string list; need_local : string_set ref }
-let empty_func_env = { cuts = []; need_local = ref (Set.empty (module String)) }
+let empty_func_env () = { cuts = []; need_local = ref (Set.empty (module String)) }
 let print_func_env env = ()
     (*let addr_ls = Map.to_alist env.addrs in*)
     (*let addr_s = String.concat ~sep:", " (List.map addr_ls ~f:(fun (s, a) -> s ^ ":" ^ (addr_to_string a))) in*)
@@ -209,7 +209,7 @@ let compiler (env : compile_env) =
                 | None -> (get_addr s) @ [wasm_load_fst] )
 
         and get_snd (s : string) : W.instr' list = match st.stack with
-        | (PairFst v) :: _ when String.equal v s -> [] (* already on top of stack *)
+        | (PairSnd v) :: _ when String.equal v s -> [] (* already on top of stack *)
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_snd s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_snd] )
@@ -272,7 +272,7 @@ let compiler (env : compile_env) =
                             asm xs st wf
                  | _ :: _ :: rest ->
                         (* TODO: if this addr is Read in the current function, don't allocate *)
-                        let i = W.Const (to_wasm_int 42 |> to_region) in (* TODO: call alloc *)
+                        let i = W.Call (fn_idxs.alloc |> to_wasm_imm) in (* TODO: call alloc *)
                         let stack = (Addr s) :: rest in
                         if Set.mem !(wf.need_local) s then
                             let (i1, st') = put_local { st with stack } in
@@ -280,9 +280,8 @@ let compiler (env : compile_env) =
                         else
                             i :: asm xs { st with stack } wf)
         | (Call (p, d, _ps)) :: xs -> (* parms should already be pushed *)
-                let proc_ls = Map.to_alist env.procs in
-                let (idx, proc) = List.findi_exn proc_ls ~f:(fun _i (p', _) -> String.equal p p') in
-                let (_, ((_d, proc_dest_tp), proc_parms, _)) = proc in
+                let (idx, proc) = List.findi_exn env.proc_ls ~f:(fun _i p' -> String.equal p p') in
+                let ((_d, proc_dest_tp), proc_parms, _) = Map.find_exn env.procs p in
                 let stack =
                     let popn = List.length proc_parms in
                     let rest = List.drop st.stack popn in
@@ -292,20 +291,26 @@ let compiler (env : compile_env) =
                     (* | Times (_, _) -> (PairSnd d) :: (PairFst d) :: rest*)
                     (* | Plus _ -> (InjTag d) :: (InjData d) :: rest)*)
                 in
-                (W.Call (to_wasm_imm idx)) :: asm xs { st with stack } wf
+                (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
          | (Switch (s, ls)) :: xs ->
                  let get_tag_instrs = get_tag s in
                  let n = List.length ls in
-                 let bt = W.ValBlockType None in (* TODO: blocktype *) 
-                 let br_table = W.Block (bt, get_tag_instrs @ [W.BrTable (List.(range 0 n |> map ~f:to_wasm_imm), (to_wasm_imm 0))] |> List.map ~f:to_region) in
+                 (*let bt = W.ValBlockType (Some (WT.NumT I32T)) in *)
+                 let bt = W.ValBlockType None in
+                 let br_table = 
+                     W.Block (bt, 
+                         (W.Const (to_wasm_int 0 |> to_region) :: get_tag_instrs) @ [W.BrTable (List.(range 0 n |> map ~f:to_wasm_imm), (to_wasm_imm 0))] 
+                         |> List.map ~f:to_region
+                    )
+                 in
                  let inner_st = match get_tag_instrs with
                  | [] -> { st with stack = List.tl_exn st.stack } 
                  | _ -> st (* tag was not there, so it was pushed, and then popped by br table *)
                  in
                  let switch = List.fold ls ~init:br_table ~f:(fun acc (i, is) -> 
-                     W.Block (bt, (acc :: asm is inner_st wf @ [Br (to_wasm_imm @@ n - i - 1)]) |> List.map ~f:to_region))
+                     W.Block (bt, (acc :: asm is inner_st wf @ [Return]) |> List.map ~f:to_region))
                  in
-                 switch :: asm xs inner_st wf
+                 switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: (W.Const (0 |> to_wasm_int |> to_region)) :: asm xs inner_st wf
     in
 
     let update_need_local (wasm_func : wasm_func_env) (addrs : string list) : unit =
@@ -320,7 +325,9 @@ let compiler (env : compile_env) =
                   else
                       loop cs as'
           | ([], (a :: as')) ->
-                  wasm_func.need_local := Set.add !(wasm_func.need_local) a;
+                  (* TODO: idk why i had this before *)
+                  (*wasm_func.need_local := Set.add !(wasm_func.need_local) a;*)
+                  (*Printf.printf "needs local: %s\n" a;*)
                   loop [a] as'
           | (_, []) -> ()
           in
