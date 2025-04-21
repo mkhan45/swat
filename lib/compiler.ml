@@ -296,8 +296,13 @@ let compiler (env : compile_env) =
                             (i :: i1) @ asm xs st' wf
                         else
                             i :: asm xs { st with stack } wf)
-        | (Call ("_add_", d, _ps)) :: xs -> (* parms should already be pushed *)
+        | (Call ("_add_", d, _ps)) :: xs ->
              (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: st.stack } wf
+        | (Call ("_sub_", d, _ps)) :: xs ->
+             (W.Binary (I32 Sub)) :: asm xs { st with stack = (Addr d) :: st.stack } wf
+        | (Call ("_eqz_", d, _ps)) :: xs ->
+             let graph = st.addrs |> add_rel ~addr:d ~rel:(InjVal d) in
+             (W.Test (I32 Eqz)) :: asm xs { st with stack = (Addr d) :: st.stack; addrs = graph } wf
         | (Call (p, d, _ps)) :: xs -> (* parms should already be pushed *)
                 let (idx, proc) = List.findi_exn env.proc_ls ~f:(fun _i p' -> String.equal p p') in
                 let ((_d, proc_dest_tp), proc_parms, _) = Map.find_exn env.procs p in
@@ -376,6 +381,7 @@ let compiler (env : compile_env) =
               let n = String.drop_prefix p (String.length "_const_") |> int_of_string in
               ([PushInt (n, d)], wasm_func)
         | S.Call (p, d, ps) ->
+              (* TODO: a sequence of GetAddr isn't really the right abstraction*)
               let gets = List.map ps ~f:(fun v -> GetAddr v) in
               update_need_local wasm_func ps;
               (gets @ [Call (p, d, ps)], wasm_func)

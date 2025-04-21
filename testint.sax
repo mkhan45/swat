@@ -1,3 +1,5 @@
+type bool = +{ 'false : 1, 'true : 1 }
+
 proc zero (d : int) =
     call _const_0 d
 
@@ -10,3 +12,17 @@ proc ten (d : int) =
     cut f2 : int
         call five f2
     call _add_ d f1 f2
+
+proc sum (d : int) (n : int) =
+    cut tst : bool
+        call _eqz_ tst n
+    read tst {
+    | 'true(u) => call _const_0 d
+    | 'false(u) => cut n1 : int
+                    cut one : int
+                        call _const_1 one
+                    call _sub_ n1 n one
+                cut nxt : int
+                    call sum nxt n1
+                call _add_ d nxt n
+    }

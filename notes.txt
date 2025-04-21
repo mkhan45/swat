@@ -5,6 +5,22 @@ might also be addresses themselves. So we build a graph.
 
 dest is the top of the stack.
 
+# TODO 2
+
+1. Restructure get_addr, get_tag etc. 
+    - GetAddr meta instr should take a list and ensure that the top of the stack is the list
+    - get_addr, get_tag, etc. should look at the addr graph
+    - get_addr, get_tag, etc. have three cases:
+        1. Already on top (do nothing)
+        2. Load from locals
+        3. Load from memory, in which case both components should be loaded, maybe stored in locals
+2. Switch refactor
+    - Must detect when the variable it's switching on hasn't actually been allocated
+    - Should free
+3. Make free follow refs
+    - Needs to accept a type
+4. Avoid allocating variables that are read in the func
+
 # TODO
 
 1. Needed annotations for wasm_func_env:
