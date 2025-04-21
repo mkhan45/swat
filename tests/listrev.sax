@@ -20,8 +20,8 @@ proc empty (d : list) =
         write u ()
     write d 'nil(u)
 
-proc prepend (d : list) (ls : list) (n : nat) =
-    cut p : nat * list
+proc prepend (d : list) (ls : list) (n : bin) =
+    cut p : bin * list
         write p (n, ls)
     write d 'cons(p)
 
@@ -48,3 +48,22 @@ proc three (d : bin) =
     cut o : 1
         call one o
     write d 'b1(o)
+
+proc ls (d : list) =
+    cut z : bin
+        call zero z
+    cut o : bin
+        call one o
+    cut tw : bin
+        call two tw
+    cut th : bin
+        call three th
+    cut mt : list
+        call empty mt
+    cut l1 : list
+        call prepend l1 mt z
+    cut l2 : list
+        call prepend l2 l1 o
+    cut l3 : list
+        call prepend l3 l2 tw
+    call prepend d l3 th

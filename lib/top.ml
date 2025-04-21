@@ -102,7 +102,7 @@ let main () =
             let free_locals = [] in
             Compiler.{ stack ; locals; addrs; free_locals }
         in
-        let wasm = (asm insts st e) @ [W.Call (Compiler.to_wasm_imm 0)] in
+        let wasm = asm insts st e in
         let locals =
             let nlocals = (Set.length !(func_env.need_local)) - (List.length a) in
             List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region))

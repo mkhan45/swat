@@ -4,6 +4,7 @@ module S = Ast
 module W = Wasm.Ast
 module WV = Wasm.Value
 module WT = Wasm.Types
+module WS = Wasm.V128
 
 let to_region t = Wasm.Source.(@@) t Wasm.Source.no_region
 
@@ -12,6 +13,11 @@ let to_wasm_imm i = to_region (Int32.of_int_exn i)
 
 let wasm_load_fst = W.Load ((to_wasm_imm 0), W.{ ty = WT.I32T; align = 2; offset = Int64.of_int_exn 0; pack = None })
 let wasm_load_snd = W.Load ((to_wasm_imm 0), W.{ ty = WT.I32T; align = 2; offset = Int64.of_int_exn 4; pack = None })
+(*let wasm_load_whole = [*)
+(*    W.VecLoad ((to_wasm_imm 0), W.{ ty = WT.V128T; align = 2; offset = Int64.of_int_exn 0; pack = None });*)
+(*    W.VecExtract (V128 (WS.I32x4 (Extract (0, ()))))*)
+(*    W.VecExtract (V128 (WS.I32x4 (Extract (1, ()))))*)
+(*]*)
 
 exception Todo
 exception BadType
@@ -223,9 +229,14 @@ let compiler (env : compile_env) =
         | _ ->
                 raise Todo (* TODO: local free/realloc *)
         in
-
         match ms with
-        | [] -> []
+        | [] -> (match st.stack with
+                 | (Addr _) :: _ -> []
+                 | _ :: _ :: _ -> [W.Call (to_wasm_imm fn_idxs.alloc)]
+                 | _ ->
+                         Printf.printf "err: [%s]\n" @@ print_stack st.stack;
+                         raise Todo
+                         )
         | (PushUnit s) :: xs -> (W.Const (to_wasm_int 0 |> to_region)) :: asm xs { st with stack = (Unit s) :: st.stack } wf
         | (PushTag (i, s)) :: xs -> (W.Const (to_wasm_int i |> to_region)) :: asm xs { st with stack = (InjTag s) :: st.stack } wf
         | (Move (src, dst)) :: xs -> raise Todo
@@ -297,6 +308,7 @@ let compiler (env : compile_env) =
                  let n = List.length ls in
                  (*let bt = W.ValBlockType (Some (WT.NumT I32T)) in *)
                  let bt = W.ValBlockType None in
+                 (*let bt = W.VarBlockType (type_idxs.i32_to_i32 |> Int32.of_int_exn |> to_region) in*)
                  let br_table = 
                      W.Block (bt, 
                          (W.Const (to_wasm_int 0 |> to_region) :: get_tag_instrs) @ [W.BrTable (List.(range 0 n |> map ~f:to_wasm_imm), (to_wasm_imm 0))] 
@@ -310,7 +322,8 @@ let compiler (env : compile_env) =
                  let switch = List.fold ls ~init:br_table ~f:(fun acc (i, is) -> 
                      W.Block (bt, (acc :: asm is inner_st wf @ [Return]) |> List.map ~f:to_region))
                  in
-                 switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: (W.Const (0 |> to_wasm_int |> to_region)) :: asm xs inner_st wf
+                 if not ((List.length xs) = 0) then raise Todo;
+                 switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: (W.Const (0 |> to_wasm_int |> to_region)) :: []
     in
 
     let update_need_local (wasm_func : wasm_func_env) (addrs : string list) : unit =
