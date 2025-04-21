@@ -9,6 +9,7 @@
             | One
             | Plus of (label * tp) list
             | TpName of tpname
+            | Int
     (* | MarkedTp of tp Mark.marked *)
 
     type varname = string

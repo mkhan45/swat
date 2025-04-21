@@ -85,6 +85,7 @@ type stack_val = Addr of string
                | PairFst of string
                | PairSnd of string
                | Unit of string
+               | Int of string
 
 let print_stack_val : stack_val -> string = function
 | Addr s -> "adr " ^ s
@@ -93,6 +94,7 @@ let print_stack_val : stack_val -> string = function
 | PairFst s -> "fst " ^ s
 | PairSnd s -> "snd " ^ s
 | Unit s -> "unt " ^ s
+| Int s -> "int " ^ s
 
 let print_stack (s : stack_val list) : string = String.concat ~sep:", " @@ List.map s ~f:print_stack_val
 
@@ -147,11 +149,13 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | Switch of (string * (int * (macro_inst list)) list) (* switches on top of stack *)
                 | PushTag of (int * string)
                 | PushUnit of string
+                | PushInt of (int * string)
 
 let rec print_macro_inst = function
 | GetAddr s -> Printf.printf "Get %s\n" s
 | GetAddrTag s -> Printf.printf "GetTag %s\n" s
 | PushTag (i, s) -> Printf.printf "PushTag %d %s\n" i s
+| PushInt (i, s) -> Printf.printf "PushInt %d %s\n" i s
 | PushUnit s -> Printf.printf "PushUnit %s\n" s
 | InitAddr s -> Printf.printf "Init %s\n" s
 | AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
@@ -232,6 +236,7 @@ let compiler (env : compile_env) =
         match ms with
         | [] -> (match st.stack with
                  | (Addr _) :: _ -> []
+                 | (Int _) :: _ -> []
                  | _ :: _ :: _ -> [W.Call (to_wasm_imm fn_idxs.alloc)]
                  | _ ->
                          Printf.printf "err: [%s]\n" @@ print_stack st.stack;
@@ -239,6 +244,7 @@ let compiler (env : compile_env) =
                          )
         | (PushUnit s) :: xs -> (W.Const (to_wasm_int 0 |> to_region)) :: asm xs { st with stack = (Unit s) :: st.stack } wf
         | (PushTag (i, s)) :: xs -> (W.Const (to_wasm_int i |> to_region)) :: asm xs { st with stack = (InjTag s) :: st.stack } wf
+        | (PushInt (i, s)) :: xs -> (W.Const (to_wasm_int i |> to_region)) :: asm xs { st with stack = (Addr s) :: st.stack } wf
         | (Move (src, dst)) :: xs -> raise Todo
         | (AliasInj (src, dst)) :: xs ->
                 let src_addr_rel = Inj dst in
@@ -290,6 +296,8 @@ let compiler (env : compile_env) =
                             (i :: i1) @ asm xs st' wf
                         else
                             i :: asm xs { st with stack } wf)
+        | (Call ("_add_", d, _ps)) :: xs -> (* parms should already be pushed *)
+             (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: st.stack } wf
         | (Call (p, d, _ps)) :: xs -> (* parms should already be pushed *)
                 let (idx, proc) = List.findi_exn env.proc_ls ~f:(fun _i p' -> String.equal p p') in
                 let ((_d, proc_dest_tp), proc_parms, _) = Map.find_exn env.procs p in
@@ -326,6 +334,7 @@ let compiler (env : compile_env) =
                  switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: (W.Const (0 |> to_wasm_int |> to_region)) :: []
     in
 
+    (* TODO: GetAddrs should work similarly to this *)
     let update_need_local (wasm_func : wasm_func_env) (addrs : string list) : unit =
           (* if addr was an arg to the function, it will be marked as needing a local,
              but since it will never have an InitAddr that doesn't matter *)
@@ -363,6 +372,9 @@ let compiler (env : compile_env) =
               (* update_need_local wasm_func [r]; *)
               ([GetAddr r], wasm_func)
               (* ([Move (l, r)], wasm_func) *)
+        | S.Call (p, d, []) when String.is_prefix p ~prefix:"_const_" ->
+              let n = String.drop_prefix p (String.length "_const_") |> int_of_string in
+              ([PushInt (n, d)], wasm_func)
         | S.Call (p, d, ps) ->
               let gets = List.map ps ~f:(fun v -> GetAddr v) in
               update_need_local wasm_func ps;

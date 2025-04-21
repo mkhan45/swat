@@ -1,0 +1,12 @@
+proc zero (d : int) =
+    call _const_0 d
+
+proc five (d : int) =
+    call _const_5 d
+
+proc ten (d : int) =
+    cut f1 : int
+        call five f1
+    cut f2 : int
+        call five f2
+    call _add_ d f1 f2
