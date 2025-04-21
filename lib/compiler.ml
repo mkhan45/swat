@@ -22,18 +22,25 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type compile_env = { type_names : type_name_map; procs : proc_map; tags : (string * int) list }
+type compile_env = { type_names : type_name_map; procs : proc_map }
 
 type type_idx_map = {
+    unit_fn : int;
     i32_to_unit : int; (* print *)
     i32_to_i32  : int; (* alloc, sax functions currently *)
     i32_to_pair : int; (* sax functions eventually *)
+    unit_to_i32 : int; (* serialize types *)
+    pair_to_unit : int;
+    pair_to_i32 : int;
 }
 let type_idxs = {
-    i32 : 0;
-    i32_to_unit : 1;
-    i32_to_i32 : 2;
-    i32_to_pair : 3;
+    unit_fn = 0;
+    i32_to_unit = 1;
+    i32_to_i32 = 2;
+    i32_to_pair = 3;
+    unit_to_i32 = 4;
+    pair_to_unit = 5;
+    pair_to_i32 = 6;
 }
 
 type fn_idx_map = {
@@ -42,9 +49,8 @@ type fn_idx_map = {
     print_val : int
 }
 
-let fn_idxs (types : (string, A.tp list)) : fn_idx_map = {
-    alloc = 0; free = 1; print_inj = 2; print_pair = 3; print_i32 = 4; print_unit = 5;
-    printers = List.range 6 (List.length types + 1)
+let fn_idxs (types : (string * S.tp) list) : fn_idx_map = {
+    alloc = 0; free = 1; print_val = 2
 }
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t

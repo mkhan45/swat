@@ -1,6 +1,6 @@
 (library
  (name sax)
- (libraries core unix wasm)
+ (libraries core unix wasm yojson)
  (inline_tests)
  (preprocess
   (staged_pps ppx_import ppx_inline_test ppx_deriving.show)

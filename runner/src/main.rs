@@ -2,6 +2,12 @@ use wasmtime::*;
 use json::JsonValue;
 
 unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, ptr: i32) -> String {
+    let tp = match tp {
+        JsonValue::Short(tpname) => &json[tpname.to_string()],
+        JsonValue::String(tpname) => &json[tpname],
+        _ => tp
+    };
+
     match tp {
         JsonValue::Null => "()".to_string(),
         JsonValue::Object(cases) => {
@@ -9,10 +15,16 @@ unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, pt
             let inj = *val_ptr;
             let tag = *(val_ptr.add(1));
             let (inj_tag, inj_tp) = cases.iter().nth(tag as usize).unwrap();
-            format!("'{inj_tag}({})", val_to_string(mem_ptr, json, inj_tp, inj))
+            format!("{inj_tag}({})", val_to_string(mem_ptr, json, inj_tp, inj))
         }
-        JsonValue::Array(pair) => todo!(),
-        JsonValue::String(tpname) => todo!(),
+        JsonValue::Array(pair) => {
+            let val_ptr = mem_ptr.add(ptr as usize) as *const i32;
+            let fst = *val_ptr.add(1);
+            let snd = *(val_ptr.add(0));
+            let fst_tp = &pair[0];
+            let snd_tp = &pair[1];
+            format!("({}, {})", val_to_string(mem_ptr, json, fst_tp, fst), val_to_string(mem_ptr, json, snd_tp, snd))
+        }
         _ => unreachable!(),
     }
 }
@@ -34,8 +46,6 @@ fn main() {
             let mem_ptr = mem.data_ptr(&store);
             *store.data_mut() = (mem_ptr, 0);
 
-            // TODO: figure out when returning wasm addrs, i32 offsets
-            let print_i32 = Func::wrap(&mut store, |x: i32| println!("{x}"));
             let alloc = Func::wrap(&mut store, |mut caller: Caller<'_, (*mut u8, i32)>, v1: i32, v2: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
                 let res = *cur;
@@ -56,6 +66,7 @@ fn main() {
                 println!("Alloc'd {res} with ({v1},{v2}) {:?}", fl);
                 res
             });
+            // TODO: fix free
             let free = Func::wrap(&mut store, |mut caller: Caller<'_, (*mut u8, i32)>, offs: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
                 let base = (*base) as *mut i32;
@@ -75,7 +86,7 @@ fn main() {
                 }
                 println!("Free'd {offs} {:?}", fl);
             });
-            let print_val = Func::wrap(&mut store, |ptr: i32| ());
+            let print_val = Func::wrap(&mut store, |_tp_idx: i32, _ptr: i32| ());
 
             let module = Module::from_file(store.engine(), f).unwrap();
             let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
@@ -85,9 +96,9 @@ fn main() {
             let string = unsafe { std::str::from_utf8(std::slice::from_raw_parts(mem_ptr as *const u8, len as usize)).unwrap().to_string() };
             let types_json = json::parse(&string).unwrap();
 
-            let print_val = Func::wrap(&mut store, move |caller: Caller<'_, (*mut u8, i32)>, tp_idx: i32, ptr: i32| unsafe {
+            let print_val = Func::wrap(&mut store, move |caller: Caller<'_, (*mut u8, i32)>, ptr: i32, tp_idx: i32| unsafe {
                 let (base, _) = caller.data();
-                let tp = &types_json[tp_idx as usize];
+                let (_tpname, tp) = &types_json.entries().nth(tp_idx as usize).unwrap();
                 println!("{}", val_to_string(*base, &types_json, &tp, ptr));
             });
 
