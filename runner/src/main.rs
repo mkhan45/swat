@@ -90,7 +90,8 @@ fn main() {
             let print_val = Func::wrap(&mut store, |_tp_idx: i32, _ptr: i32| ());
 
             let module = Module::from_file(store.engine(), f).unwrap();
-            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            //let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), print_val.into()]).unwrap();
 
             let serialize_types = instance.get_typed_func::<(), i32>(&mut store, "serialize_types").unwrap();
             let len = serialize_types.call(&mut store, ()).unwrap();
@@ -103,7 +104,8 @@ fn main() {
                 println!("{}", val_to_string(*base, &types_json, &tp, ptr));
             });
 
-            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            //let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), print_val.into()]).unwrap();
             unsafe {
                 let sz = mem.data_size(&store) / 4;
                 for i in 0..sz {

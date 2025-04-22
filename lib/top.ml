@@ -50,11 +50,11 @@ let mod_imports = [
         item_name = Wasm.Utf8.decode "alloc";
         idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.pair_to_i32) |> Compiler.to_region (* alloc *)
     };
-    W.{
-        module_name = Wasm.Utf8.decode "";
-        item_name = Wasm.Utf8.decode "free";
-        idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.i32_to_unit) |> Compiler.to_region (* free *)
-    };
+    (*W.{*)
+    (*    module_name = Wasm.Utf8.decode "";*)
+    (*    item_name = Wasm.Utf8.decode "free";*)
+    (*    idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.i32_to_unit) |> Compiler.to_region (* free *)*)
+    (*};*)
     W.{
         module_name = Wasm.Utf8.decode "";
         item_name = Wasm.Utf8.decode "print_val";
@@ -67,7 +67,7 @@ let mk_mod funcs datas = W.{
     types = mod_types; 
     funcs = funcs |> List.map ~f:Compiler.to_region;
     imports = mod_imports |> List.map ~f:Compiler.to_region;
-    exports = [{ name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm 3) |> Compiler.to_region} |> Compiler.to_region];
+    exports = [{ name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm 2) |> Compiler.to_region} |> Compiler.to_region];
     datas;
 }
 

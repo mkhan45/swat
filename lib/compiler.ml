@@ -56,7 +56,7 @@ type fn_idx_map = {
 }
 
 let fn_idxs : fn_idx_map = {
-    alloc = 0; free = 1; print_val = 2
+    alloc = 0; free = -1; print_val = 1
 }
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t
