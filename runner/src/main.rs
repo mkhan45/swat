@@ -8,7 +8,6 @@ unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, pt
         _ => tp
     };
 
-    dbg!(tp.to_string(), ptr);
     match tp {
         JsonValue::Null => "()".to_string(),
         JsonValue::Object(cases) => {
@@ -43,7 +42,7 @@ fn main() {
 
             let mut store: Store<(*mut u8, i32)> = Store::new(&engine, (&mut 0, 0));
 
-            let mem = Memory::new(&mut store, MemoryType::new(1, None)).unwrap();
+            let mem = Memory::new(&mut store, MemoryType::new(5, None)).unwrap();
             let mem_ptr = mem.data_ptr(&store);
             *store.data_mut() = (mem_ptr, 0);
 
@@ -56,15 +55,7 @@ fn main() {
                 *(cur_ptr.add(1)) = v2;
                 *cur += next_free;
 
-                let mut fl = vec![];
-                let mut fl_ptr = *cur;
-                let i32_arr = *base as *mut i32;
-                for _ in 0..10 {
-                    fl.push(fl_ptr);
-                    let next_offs = *i32_arr.add(fl_ptr as usize);
-                    fl_ptr += next_offs;
-                }
-                println!("Alloc'd {res} with ({v1},{v2}) {:?}", fl);
+                //println!("Alloc'd {res} with ({v1},{v2}) {:?}", fl);
                 res
             });
             // TODO: fix free
@@ -78,14 +69,7 @@ fn main() {
                 *new_free = offs_to_cur;
                 *cur = offs;
 
-                let mut fl = vec![];
-                let mut fl_ptr = *cur;
-                for _ in 0..10 {
-                    fl.push(fl_ptr);
-                    let next_offs = *base.add(fl_ptr as usize);
-                    fl_ptr += next_offs;
-                }
-                println!("Free'd {offs} {:?}", fl);
+                //println!("Free'd {offs} {:?}", fl);
             });
             let print_val = Func::wrap(&mut store, |_tp_idx: i32, _ptr: i32| ());
 
@@ -113,9 +97,11 @@ fn main() {
                 }
             }
 
-            let main = instance.get_typed_func::<(i32, i32), i32>(&mut store, "main").unwrap();
-            let res = main.call(&mut store, (5, 0)).unwrap();
-            println!("{res}");
+            let main = instance.get_typed_func::<(), i32>(&mut store, "main").unwrap();
+            for _ in 0..1 {
+                let res = main.call(&mut store, ()).unwrap();
+                //println!("{res}");
+            }
 
             unsafe {
                 let mut mem_buf: Vec<i32> = vec![];

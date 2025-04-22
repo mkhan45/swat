@@ -62,12 +62,15 @@ let mod_imports = [
     }
 ]
 
-let mk_mod funcs datas = W.{
+let mk_mod funcs datas main_idx = W.{
     W.empty_module with 
     types = mod_types; 
     funcs = funcs |> List.map ~f:Compiler.to_region;
     imports = mod_imports |> List.map ~f:Compiler.to_region;
-    exports = [{ name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm 2) |> Compiler.to_region} |> Compiler.to_region];
+    exports = [
+        { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm 2) |> Compiler.to_region} |> Compiler.to_region;
+        { name = Wasm.Utf8.decode "main"; edesc = FuncExport (Compiler.to_wasm_imm (main_idx + Compiler.fn_idxs.print_val + 2)) |> Compiler.to_region } |> Compiler.to_region;
+    ];
     datas;
 }
 
@@ -83,6 +86,7 @@ let main () =
     let type_names = type_ls |> Map.of_alist_exn (module String) in
     let proc_ls = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) in
     let procs = proc_ls |> Map.of_alist_exn (module String) in
+    let (main_idx, _) = List.findi_exn proc_ls ~f:(fun i (n, _) -> String.equal n "main") in
     let printer = Wasm_print.mk_printer type_ls in
     (*let tags = Wasm_print.prog_tags env in*)
     let compile_env = Compiler.{ type_names; procs; proc_ls = proc_ls |> List.map ~f:fst } in
@@ -91,7 +95,6 @@ let main () =
         Printf.printf "proc %s:\n" n;
         let vars = Map.of_alist_exn (module String) a in
         let func_env = Compiler.empty_func_env () in
-        func_env.need_local := Set.empty (module String);
         let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars func_env in
         List.iter insts ~f:Compiler.print_macro_inst;
         Compiler.print_func_env e;
@@ -99,14 +102,23 @@ let main () =
             let locals = List.map a ~f:(fun (v, _t) -> Compiler.Addr v) in
             let stack = [] in
             let addrs = Map.of_alist_exn (module String) @@ List.map a ~f:(fun (v, _t) -> (v, [])) in
-            let free_locals = [] in
-            Compiler.{ stack ; locals; addrs; free_locals }
+            Compiler.{ stack ; locals; addrs }
         in
         let wasm = asm insts st e in
         let locals =
-            let nlocals = (Set.length !(func_env.need_local)) - (List.length a) in
+            let nlocals = !(func_env.nlocals) in
             List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region))
         in
+
+        let wasm = match n with
+        | "main" -> 
+                let open Compiler in
+                let (_, A.TpName dt) = d in
+                let (t_idx, _) = List.findi_exn type_ls ~f:(fun i (n, _) -> String.equal dt n) in
+                wasm @ [W.Const (to_wasm_int t_idx |> to_region); W.Call (fn_idxs.print_val |> to_wasm_imm); W.Const (to_wasm_int 0 |> to_region)]
+        | _ -> wasm
+        in
+
         (* TODO: generate types *)
         let ftype = match List.length a with
         | 0 -> Compiler.type_idxs.unit_to_i32
@@ -120,8 +132,8 @@ let main () =
         (*()*)
     )
     in
-    let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] in
-    Wasm.Print.module_ (Stdio.Out_channel.stdout) 120 (Compiler.to_region wasm_mod);
+    let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] main_idx in
+    Wasm.Print.module_ (Stdio.Out_channel.create ((List.hd_exn args) ^ ".wat")) 120 (Compiler.to_region wasm_mod);
     (*let _ = eval_and_print print_string env in*)
     (*let _ = close_out out_channel in*)
     serve_exit_code Serve_success |> Stdlib.exit

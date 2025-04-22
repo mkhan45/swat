@@ -72,8 +72,8 @@ let addr_to_string = function
 type addr_map = (string, wasm_addr, String.comparator_witness) Map.t
 type string_set = (string, String.comparator_witness) Set.t
 
-type wasm_func_env = { cuts : string list; need_local : string_set ref }
-let empty_func_env () = { cuts = []; need_local = ref (Set.empty (module String)) }
+type wasm_func_env = { read_in_func : string_set ref; nlocals : int ref }
+let empty_func_env () = { read_in_func = ref @@ Set.empty (module String); nlocals = ref 0 }
 let print_func_env env = ()
     (*let addr_ls = Map.to_alist env.addrs in*)
     (*let addr_s = String.concat ~sep:", " (List.map addr_ls ~f:(fun (s, a) -> s ^ ":" ^ (addr_to_string a))) in*)
@@ -129,7 +129,7 @@ let add_rel (graph : addr_graph) ~(addr : string) ~(rel : addr_rel) : addr_graph
 | Some ls -> Map.set graph ~key:addr ~data:(rel :: ls)
 | None -> Map.set graph ~key:addr ~data:[rel]
 
-type asm_state = { stack : stack_val list; locals : stack_val list; free_locals : int list; addrs : addr_graph }
+type asm_state = { stack : stack_val list; locals : stack_val list; addrs : addr_graph }
 
 type winsts = W.instr' list
 
@@ -224,14 +224,12 @@ let compiler (env : compile_env) =
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_snd] )
 
-        and put_local (st : asm_state) : W.instr' list * asm_state = match (st.stack, st.free_locals) with
-        | (sv :: ss, []) ->
+        and put_local (st : asm_state) : W.instr' list * asm_state = match st.stack with
+        | sv :: ss ->
                 let local_idx = List.length st.locals in
                 let new_locals = st.locals @ [sv] in
                 (* TODO: should adjust wasm_func to have local_types *)
                 ([W.LocalSet (to_wasm_imm local_idx)], { st with stack = ss; locals = new_locals })
-        | _ ->
-                raise Todo (* TODO: local free/realloc *)
         in
         match ms with
         | [] -> (match st.stack with
@@ -282,20 +280,20 @@ let compiler (env : compile_env) =
                  | (Unit _) :: rest -> asm xs st wf
                  | (Addr s') :: rest when String.equal s s' -> 
                         (* don't need to realloc, but might need local *)
-                        if Set.mem !(wf.need_local) s then
-                            let (i1, st') = put_local st in
-                            i1 @ asm xs st' wf
-                        else
-                            asm xs st wf
-                 | _ :: _ :: rest ->
-                        (* TODO: if this addr is Read in the current function, don't allocate *)
-                        let i = W.Call (fn_idxs.alloc |> to_wasm_imm) in (* TODO: call alloc *)
+                        let (i1, st') = put_local st in
+                        wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                        i1 @ asm xs st' wf
+                 | _ :: _ :: rest when not @@ Set.mem !(wf.read_in_func) s ->
+                        let i1 = W.Call (fn_idxs.alloc |> to_wasm_imm) in
                         let stack = (Addr s) :: rest in
-                        if Set.mem !(wf.need_local) s then
-                            let (i1, st') = put_local { st with stack } in
-                            (i :: i1) @ asm xs st' wf
-                        else
-                            i :: asm xs { st with stack } wf)
+                        let (i2, st') = put_local { st with stack } in
+                        wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                        i1 :: i2 @ asm xs st' wf
+                 | _ :: _ :: rest when Set.mem !(wf.read_in_func) s ->
+                        let (i1, st') = put_local st in
+                        let (i2, st'') = put_local st' in
+                        wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
+                        i1 @ i2 @ asm xs st'' wf)
         | (Call ("_add_", d, _ps)) :: xs ->
              (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: st.stack } wf
         | (Call ("_sub_", d, _ps)) :: xs ->
@@ -336,29 +334,7 @@ let compiler (env : compile_env) =
                      W.Block (bt, (acc :: asm is inner_st wf @ [Return]) |> List.map ~f:to_region))
                  in
                  if not ((List.length xs) = 0) then raise Todo;
-                 switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: (W.Const (0 |> to_wasm_int |> to_region)) :: []
-    in
-
-    (* TODO: GetAddrs should work similarly to this *)
-    let update_need_local (wasm_func : wasm_func_env) (addrs : string list) : unit =
-          (* if addr was an arg to the function, it will be marked as needing a local,
-             but since it will never have an InitAddr that doesn't matter *)
-          let rec loop (cuts : string list) (addrs : string list) = match (cuts, addrs) with
-          | ((c :: cs), (a :: as')) ->
-                  if not @@ String.equal c a then
-                      (wasm_func.need_local := Set.add !(wasm_func.need_local) a;
-                      Printf.printf "needs local: %s\n" a;
-                      loop (a :: cuts) as')
-                  else
-                      loop cs as'
-          | ([], (a :: as')) ->
-                  (* TODO: idk why i had this before *)
-                  (*wasm_func.need_local := Set.add !(wasm_func.need_local) a;*)
-                  (*Printf.printf "needs local: %s\n" a;*)
-                  loop [a] as'
-          | (_, []) -> ()
-          in
-          loop wasm_func.cuts addrs
+                 switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: []
     in
 
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
@@ -367,7 +343,7 @@ let compiler (env : compile_env) =
               (* TODO: typecheck *)
               let (is, e) = compile_dest ~cmd:l ~dest:(v, t) ~vars wasm_func in
               let new_vars = Map.set vars ~key:v ~data:t in
-              let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars { e with cuts = v :: e.cuts } in
+              let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars e in
               ((is @ (InitAddr v :: i)), e')
         | S.Id (l, r) ->
               (* TODO: typecheck *)
@@ -381,15 +357,12 @@ let compiler (env : compile_env) =
               let n = String.drop_prefix p (String.length "_const_") |> int_of_string in
               ([PushInt (n, d)], wasm_func)
         | S.Call (p, d, ps) ->
-              (* TODO: a sequence of GetAddr isn't really the right abstraction*)
               let gets = List.map ps ~f:(fun v -> GetAddr v) in
-              update_need_local wasm_func ps;
               (gets @ [Call (p, d, ps)], wasm_func)
         | S.Read (v, bs) ->
               (* TODO: read both parts instead of just the tag, so that we can instantly free it *)
-              update_need_local wasm_func [v];
+              wasm_func.read_in_func := Set.add !(wasm_func.read_in_func) v;
               let subj_tp = Map.find_exn vars v |> fix in
-              let wasm_func = if Set.mem !(wasm_func.need_local) v then wasm_func else { wasm_func with cuts = List.tl wasm_func.cuts |> Option.value ~default:[] } in
               (match subj_tp with
               | One -> 
                       (* TODO: typecheck *)
@@ -423,12 +396,10 @@ let compiler (env : compile_env) =
                       | _ -> raise TypeError)
             | Times (lt, rt) -> (match cmd with
                                  | S.Write (v, S.PairPat (l, r)) when String.equal dest_var v ->
-                                         update_need_local wasm_func [l; r];
                                          ([GetAddr l; GetAddr r], wasm_func)
                                  | _ -> raise TypeError)
             | Plus ls -> (match cmd with
                           | S.Write (v, S.InjPat (l, v')) when String.equal dest_var v && List.exists ls ~f:(fun (l', _) -> String.equal l l') ->
-                                update_need_local wasm_func [v'];
                                 let tag_idx = List.findi ls ~f:(fun i (l', _) -> String.equal l l') |> Option.value_exn |> fst in
                                 let push_idx = PushTag (tag_idx, v) in
                                 ([GetAddr v'; push_idx], wasm_func)

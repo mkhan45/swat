@@ -67,3 +67,34 @@ proc ls (d : list) =
     cut l3 : list
         call prepend l3 l2 tw
     call prepend d l3 th
+
+proc concat (d : list) (a : list) (b : list) =
+    read a {
+    | 'nil(u) => read u()
+                    id d b
+    | 'cons(p) => read p (head, tail)
+                    cut rest : list
+                        call concat rest tail b
+                    cut result : bin * list
+                        write result (head, rest)
+                    write d 'cons(result)
+    }
+
+proc main (d : list) =
+    cut l1 : list
+        call ls l1
+    cut l2 : list
+        call ls l2
+    cut l3 : list
+        call ls l3
+    cut l4 : list
+        call ls l4
+    cut l5 : list
+        call concat l5 l1 l2
+    cut l6 : list
+        call concat l6 l3 l4
+    cut l : list
+        call concat l l5 l6
+    cut mt : list
+        call empty mt
+    call reverse d l mt
