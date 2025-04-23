@@ -53,13 +53,13 @@
   )
  )
  (func $4 (result i32)
-  (call $0
+  (return_call $0
    (i32.const 0)
    (i32.const 0)
   )
  )
  (func $5 (param $0 i32) (param $1 i32) (result i32)
-  (call $0
+  (return_call $0
    (call $0
     (local.get $1)
     (local.get $0)
@@ -68,7 +68,7 @@
   )
  )
  (func $6 (result i32)
-  (call $0
+  (return_call $0
    (call $0
     (i32.const 0)
     (i32.const 2)
@@ -77,7 +77,7 @@
   )
  )
  (func $7 (result i32)
-  (call $0
+  (return_call $0
    (call $0
     (i32.const 0)
     (i32.const 2)
@@ -146,7 +146,7 @@
     (local.get $1)
    )
   )
-  (call $0
+  (return_call $0
    (call $0
     (i32.load
      (i32.load

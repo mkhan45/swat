@@ -358,7 +358,7 @@ let compiler (env : compile_env) =
                      W.Block (bt, (acc :: asm is inner_st wf) |> List.map ~f:to_region))
                  in
                  if not ((List.length xs) = 0) then raise Todo;
-                 switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: []
+                 [switch]
     in
 
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
