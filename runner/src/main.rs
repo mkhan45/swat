@@ -2,13 +2,13 @@ use wasmtime::*;
 use json::JsonValue;
 
 unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, ptr: i32) -> String {
-    let tp = match tp {
-        JsonValue::Short(tpname) => &json[tpname.to_string()],
-        JsonValue::String(tpname) => &json[tpname],
-        _ => tp
-    };
-
     match tp {
+        JsonValue::Short(tpname) if tpname.as_str() == "int" => {
+            // ints are passed directly, they're immutable
+            ptr.to_string()
+        }
+        JsonValue::Short(tpname) => val_to_string(mem_ptr, json, &json[tpname.as_str()], ptr),
+        JsonValue::String(tpname) => val_to_string(mem_ptr, json, &json[tpname], ptr),
         JsonValue::Null => "()".to_string(),
         JsonValue::Object(cases) => {
             let val_ptr = mem_ptr.add(ptr as usize) as *const i32;

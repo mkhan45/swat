@@ -26,3 +26,25 @@ proc sum (d : int) (n : int) =
                     call sum nxt n1
                 call _add_ d nxt n
     }
+
+proc sum_tailrec (d : int) (n : int) (acc : int) =
+    cut tst : bool
+        call _eqz_ tst n
+    read tst {
+    | 'true(u) =>
+        id d acc
+    | 'false(u) => cut n1 : int
+                       cut one : int
+                           call _const_1 one
+                       call _sub_ n1 n one
+                   cut nxt : int
+                       call _add_ nxt acc n
+                   call sum_tailrec d n1 nxt
+    }
+
+proc main (d : int) =
+    cut n : int
+        call _const_100000 n
+    cut acc : int
+        call _const_0 acc
+    call sum_tailrec d n acc

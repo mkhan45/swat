@@ -278,6 +278,11 @@ let compiler (env : compile_env) =
         | (InitAddr s) :: xs ->
                 (match st.stack with
                  | (Unit _) :: rest -> asm xs st wf
+                 | (InjTag s') :: rest when String.equal s s' -> 
+                        (* special case where s is a bool and only thing on the stack *)
+                        let (i1, st') = put_local st in
+                        wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                        i1 @ asm xs st' wf
                  | (Addr s') :: rest when String.equal s s' -> 
                         (* don't need to realloc, but might need local *)
                         let (i1, st') = put_local st in
@@ -295,12 +300,15 @@ let compiler (env : compile_env) =
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
                         i1 @ i2 @ asm xs st'' wf)
         | (Call ("_add_", d, _ps)) :: xs ->
-             (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: st.stack } wf
+             let _ :: _ :: rest = st.stack in
+             (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: rest } wf
         | (Call ("_sub_", d, _ps)) :: xs ->
-             (W.Binary (I32 Sub)) :: asm xs { st with stack = (Addr d) :: st.stack } wf
+             let _ :: _ :: rest = st.stack in
+             (W.Binary (I32 Sub)) :: asm xs { st with stack = (Addr d) :: rest } wf
         | (Call ("_eqz_", d, _ps)) :: xs ->
              let graph = st.addrs |> add_rel ~addr:d ~rel:(InjVal d) in
-             (W.Test (I32 Eqz)) :: asm xs { st with stack = (Addr d) :: st.stack; addrs = graph } wf
+             let _ :: rest = st.stack in
+             (W.Test (I32 Eqz)) :: asm xs { st with stack = (InjTag d) :: rest; addrs = graph } wf
         | (Call (p, d, _ps)) :: xs -> (* parms should already be pushed *)
                 let (idx, proc) = List.findi_exn env.proc_ls ~f:(fun _i p' -> String.equal p p') in
                 let ((_d, proc_dest_tp), proc_parms, _) = Map.find_exn env.procs p in

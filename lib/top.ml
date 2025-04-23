@@ -74,6 +74,8 @@ let mk_mod funcs datas main_idx = W.{
     datas;
 }
 
+let int_tp = ("int", A.TpName "int")
+
 let main () =
   try
     let open Core in
@@ -82,7 +84,7 @@ let main () =
 (*  let () = print_string (A.Print.pp_env env) in *)
     let out_channel = open_out ((List.hd_exn args) ^ ".val") in
     let print_string s = output_string out_channel s in
-    let type_ls = env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None) in
+    let type_ls = int_tp :: (env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None)) in
     let type_names = type_ls |> Map.of_alist_exn (module String) in
     let proc_ls = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) in
     let procs = proc_ls |> Map.of_alist_exn (module String) in
@@ -115,7 +117,9 @@ let main () =
                 let open Compiler in
                 let (_, A.TpName dt) = d in
                 let (t_idx, _) = List.findi_exn type_ls ~f:(fun i (n, _) -> String.equal dt n) in
-                wasm @ [W.Const (to_wasm_int t_idx |> to_region); W.Call (fn_idxs.print_val |> to_wasm_imm); W.Const (to_wasm_int 0 |> to_region)]
+                wasm @ 
+                    [W.Const (to_wasm_int t_idx |> to_region); W.Call (fn_idxs.print_val |> to_wasm_imm); 
+                    W.Const (to_wasm_int 0 |> to_region); W.Const (to_wasm_int 0 |> to_region); W.Call (fn_idxs.alloc |> to_wasm_imm)]
         | _ -> wasm
         in
 
