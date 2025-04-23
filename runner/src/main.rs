@@ -55,7 +55,7 @@ fn main() {
                 *(cur_ptr.add(1)) = v2;
                 *cur += next_free;
 
-                //println!("Alloc'd {res} with ({v1},{v2}) {:?}", fl);
+                println!("Alloc'd {res} with ({v1},{v2})");
                 res
             });
             // TODO: fix free

@@ -152,3 +152,6 @@ proc ack3_2_is_29 (d : bool) =
 	cut twenty_nine : nat
 	  call twenty_nine twenty_nine
 	  call nat_eq d ack_3_2 twenty_nine
+
+proc main (d : bool) =
+    call ack3_2_is_29 d

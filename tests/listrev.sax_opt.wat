@@ -43,7 +43,7 @@
     (i32.const 1)
    )
   )
-  (call $3
+  (return_call $3
    (i32.load offset=4
     (i32.load
      (local.get $0)
@@ -108,7 +108,7 @@
     (i32.const 1)
    )
   )
-  (call $5
+  (return_call $5
    (call $5
     (call $5
      (call $5

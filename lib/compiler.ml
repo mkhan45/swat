@@ -149,6 +149,7 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | Switch of (string * (int * (macro_inst list)) list) (* switches on top of stack *)
                 | PushTag of (int * string)
                 | PushUnit of string
+                | GetUnit of string
                 | PushInt of (int * string)
 
 let rec print_macro_inst = function
@@ -157,6 +158,7 @@ let rec print_macro_inst = function
 | PushTag (i, s) -> Printf.printf "PushTag %d %s\n" i s
 | PushInt (i, s) -> Printf.printf "PushInt %d %s\n" i s
 | PushUnit s -> Printf.printf "PushUnit %s\n" s
+| GetUnit s -> Printf.printf "GetUnit %s\n" s
 | InitAddr s -> Printf.printf "Init %s\n" s
 | AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
 | AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s\n" l r p
@@ -169,6 +171,7 @@ let rec print_macro_inst = function
             List.iter is ~f:print_macro_inst)
 
 let rec fix (env : compile_env) (t : S.tp) : S.tp = match t with
+| S.TpName "int" -> t
 | S.TpName n -> (match Map.find_exn env.type_names n with
                | S.TpName n' when String.equal n n' -> raise BadType
                | S.TpName n' -> fix env (S.TpName n')
@@ -186,7 +189,7 @@ let compiler (env : compile_env) =
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_addr s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None ->
-                    Printf.printf "looking for %s, stack: %s\n" s (print_stack st.stack);
+                    (*Printf.printf "looking for %s, locals: %s\n" s (print_stack st.locals);*)
                     let res = Option.bind (Map.find st.addrs s) ~f:(fun rels ->
                         List.find_map rels ~f:(function
                         | InjVal s -> Some (get_inj s)
@@ -224,6 +227,10 @@ let compiler (env : compile_env) =
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_snd] )
 
+        and get_unit (s : string) : W.instr' list = match st.stack with
+        | (Unit v) :: _ when String.equal v s -> [] (* already on top of stack *)
+        | _ -> [W.Const (to_wasm_int 0 |> to_region)]
+
         and put_local (st : asm_state) : W.instr' list * asm_state = match st.stack with
         | sv :: ss ->
                 let local_idx = List.length st.locals in
@@ -233,9 +240,8 @@ let compiler (env : compile_env) =
         in
         match ms with
         | [] -> (match st.stack with
-                 | (Addr _) :: _ -> []
-                 | (Int _) :: _ -> []
-                 | _ :: _ :: _ -> [W.Call (to_wasm_imm fn_idxs.alloc)]
+                 | (Addr _ | Int _ | Unit _) :: [] -> if not (String.equal "main" wf.name) then [W.Return] else []
+                 | _ :: _ :: [] -> if not (String.equal "main" wf.name) then [W.ReturnCall (to_wasm_imm fn_idxs.alloc)] else [W.Call (to_wasm_imm fn_idxs.alloc)]
                  | _ ->
                          Printf.printf "err: [%s]\n" @@ print_stack st.stack;
                          raise Todo
@@ -269,7 +275,12 @@ let compiler (env : compile_env) =
                 (*else*)
                 (*    asm xs { st with addrs = graph } wf*)
                 (*end*)
-        | (GetAddr s) :: xs -> (match get_addr s with
+        | (GetUnit s) :: xs ->
+                (match get_unit s with
+                                | [] -> asm xs st wf (* already on stack *)
+                                | is -> is @ asm xs { st with stack = (Unit s) :: st.stack } wf)
+        | (GetAddr s) :: xs -> 
+                (match get_addr s with
                                 | [] -> asm xs st wf (* already on stack *)
                                 | is -> is @ asm xs { st with stack = (Addr s) :: st.stack } wf)
         | (GetAddrTag s) :: xs -> (match get_tag s with
@@ -278,7 +289,7 @@ let compiler (env : compile_env) =
         | (InitAddr s) :: xs ->
                 (match st.stack with
                  | (Unit _) :: rest -> asm xs st wf
-                 | (InjTag s') :: rest when String.equal s s' -> 
+                 | (InjTag s') :: [] when String.equal s s' -> 
                         (* special case where s is a bool and only thing on the stack *)
                         let (i1, st') = put_local st in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
@@ -322,7 +333,8 @@ let compiler (env : compile_env) =
                     (* | Plus _ -> (InjTag d) :: (InjData d) :: rest)*)
                 in
                 begin if (String.equal d wf.ret_dest) && not (String.equal "main" wf.name) then
-                    (W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
+                    if List.length xs > 0 then raise TypeError else
+                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))]
                 else
                     (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
                 end
@@ -343,7 +355,7 @@ let compiler (env : compile_env) =
                  | _ -> st (* tag was not there, so it was pushed, and then popped by br table *)
                  in
                  let switch = List.fold ls ~init:br_table ~f:(fun acc (i, is) -> 
-                     W.Block (bt, (acc :: asm is inner_st wf @ [Return]) |> List.map ~f:to_region))
+                     W.Block (bt, (acc :: asm is inner_st wf) |> List.map ~f:to_region))
                  in
                  if not ((List.length xs) = 0) then raise Todo;
                  switch :: (W.Const (0 |> to_wasm_int |> to_region)) :: []
@@ -357,14 +369,6 @@ let compiler (env : compile_env) =
               let new_vars = Map.set vars ~key:v ~data:t in
               let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars e in
               ((is @ (InitAddr v :: i)), e')
-        | S.Id (l, r) ->
-              (* TODO: typecheck *)
-              (* TODO: since dest is just the top of the stack, I think this is just GetAddr *)
-              (* TODO: except that we need to propagate the info to asm, so make an Alias command.
-                       in asm, we can just GetAddr r and then add to graph *)
-              (* update_need_local wasm_func [r]; *)
-              ([GetAddr r], wasm_func)
-              (* ([Move (l, r)], wasm_func) *)
         | S.Call (p, d, []) when String.is_prefix p ~prefix:"_const_" ->
               let n = String.drop_prefix p (String.length "_const_") |> int_of_string in
               ([PushInt (n, d)], wasm_func)
@@ -405,17 +409,25 @@ let compiler (env : compile_env) =
             (match dest_tp' with
             | One -> (match cmd with
                       | S.Write (v, S.UnitPat) when String.equal dest_var v -> ([PushUnit v], wasm_func)
+                      | S.Id (l, r) when String.equal dest_var l -> ([PushUnit l], wasm_func)
                       | _ -> raise TypeError)
             | Times (lt, rt) -> (match cmd with
                                  | S.Write (v, S.PairPat (l, r)) when String.equal dest_var v ->
                                          ([GetAddr l; GetAddr r], wasm_func)
+                                 | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
                                  | _ -> raise TypeError)
             | Plus ls -> (match cmd with
                           | S.Write (v, S.InjPat (l, v')) when String.equal dest_var v && List.exists ls ~f:(fun (l', _) -> String.equal l l') ->
-                                let tag_idx = List.findi ls ~f:(fun i (l', _) -> String.equal l l') |> Option.value_exn |> fst in
+                                let (tag_idx, (_, tag_tp)) = List.findi ls ~f:(fun i (l', _) -> String.equal l l') |> Option.value_exn in
                                 let push_idx = PushTag (tag_idx, v) in
-                                ([GetAddr v'; push_idx], wasm_func)
+                                (match fix tag_tp with
+                                 | One -> ([GetUnit v'; push_idx], wasm_func)
+                                 |_ -> ([GetAddr v'; push_idx], wasm_func))
+                          | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
                           | _ -> raise TypeError)
+            | TpName "int" -> (match cmd with
+                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
+                               | _ -> raise TypeError)
             | _ -> raise Todo)
     in
 

@@ -149,3 +149,6 @@ proc fib6 (d: nat) =
   cut t : nat
     call six t
     call fib d t
+
+proc main (d : nat) =
+    call fib6 d
