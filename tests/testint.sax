@@ -44,7 +44,7 @@ proc sum_tailrec (d : int) (n : int) (acc : int) =
 
 proc main (d : int) =
     cut n : int
-        call _const_10000000 n
+        call _const_1000000 n
     cut acc : int
         call _const_0 acc
     call sum_tailrec d n acc

@@ -1,0 +1,48 @@
+(module
+ (type $6 (func (param i32 i32) (result i32)))
+ (type $5 (func (param i32 i32)))
+ (type $4 (func (result i32)))
+ (import "" "mem" (memory $0 1))
+ (import "" "alloc" (func $0 (param i32 i32) (result i32)))
+ (import "" "free" (func $1 (param i32 i32)))
+ (import "" "print_val" (func $2 (param i32 i32)))
+ (data $0 "{\"int\":\"int\",\"bool\":{\"\'false\":null,\"\'true\":null}}")
+ (export "serialize_types" (func $3))
+ (export "main" (func $9))
+ (func $3 (result i32)
+  (memory.init $0
+   (i32.const 0)
+   (i32.const 0)
+   (i32.const 49)
+  )
+  (i32.const 49)
+ )
+ (func $8 (param $0 i32) (param $1 i32) (result i32)
+    (block
+      (loop
+        (br_if 1 (i32.eqz (local.get $0)))
+        (local.set $1 (i32.add (local.get $1) (local.get $0)))
+        (local.set $0 (i32.sub (local.get $0) (i32.const 1)))
+        (br 0)
+      )
+    )
+    (local.get $1)
+ )
+ (func $9 (result i32)
+  (call $2
+   (call $8
+    (i32.const 1000000000)
+    (i32.const 0)
+   )
+   (i32.const 0)
+  )
+  (call $1
+   (call $0
+    (i32.const 0)
+    (i32.const 0)
+   )
+   (i32.const 0)
+  )
+  (i32.const 0)
+ )
+)
