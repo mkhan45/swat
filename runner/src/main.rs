@@ -1,6 +1,8 @@
 use wasmtime::*;
 use json::JsonValue;
 
+use std::sync::{Arc, Mutex};
+
 unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, ptr: i32) -> String {
     match tp {
         JsonValue::Short(tpname) if tpname.as_str() == "int" => {
@@ -29,6 +31,42 @@ unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, pt
     }
 }
 
+
+// cells are either
+// [ addr ] [ addr ]
+// [ addr ] [ tag ]
+// [ int ] [ tag ]
+// [ int ] [ int ] ?
+// can't really come up with a tagging scheme
+
+enum FreeType {
+    Leaf,
+    Inj(Vec<usize>),
+    Pair(usize, usize),
+}
+
+// TODO: free that follows ptrs
+unsafe fn free_rec(mem_ptr: *mut u8, ptr: usize, fl_head: &mut i32, types: &FreeType, tp_idx: usize) {
+    let fl_head_ptr = mem_ptr.add(*fl_head as usize) as *mut i32;
+
+    let free_fst_ptr = mem_ptr.add(ptr) as *mut i32;
+    let free_snd_ptr = mem_ptr.add(ptr + 1) as *mut i32;
+    let free_fst = *free_fst_ptr;
+    let free_snd = *free_snd_ptr;
+
+    let offs_to_prev_fl = *fl_head - (ptr as i32);
+    *free_fst_ptr = offs_to_prev_fl;
+    *fl_head = ptr as i32;
+
+    //if ((free_fst_ptr as *mut u8)> mem_ptr) {
+    //    free_rec(mem_ptr, free_fst, fl_head);
+    //}
+    //
+    //if ((free_snd_ptr as *mut u8)> mem_ptr) {
+    //    free_rec(mem_ptr, free_fst, fl_head);
+    //}
+}
+
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
 
@@ -46,7 +84,11 @@ fn main() {
             let mem_ptr = mem.data_ptr(&store);
             *store.data_mut() = (mem_ptr, 0);
 
-            let alloc = Func::wrap(&mut store, |mut caller: Caller<'_, (*mut u8, i32)>, v1: i32, v2: i32| unsafe {
+            let allocs = Arc::new(Mutex::new(0));
+
+            let alloc_alloc = allocs.clone();
+            let alloc_free = allocs.clone();
+            let alloc = Func::wrap(&mut store, move |mut caller: Caller<'_, (*mut u8, i32)>, v1: i32, v2: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
                 let res = *cur;
                 let cur_ptr = base.add(*cur as usize) as *mut i32;
@@ -55,27 +97,31 @@ fn main() {
                 *(cur_ptr.add(1)) = v2;
                 *cur += next_free;
 
-                println!("Alloc'd {res} with ({v1},{v2})");
+                *alloc_alloc.lock().unwrap() += 1;
+                //println!("Alloc'd {res} with ({v1},{v2})");
                 res
             });
             // TODO: fix free
-            let free = Func::wrap(&mut store, |mut caller: Caller<'_, (*mut u8, i32)>, offs: i32| unsafe {
+            let free = Func::wrap(&mut store, move |mut caller: Caller<'_, (*mut u8, i32)>, offs: i32, tp_idx: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
-                let base = (*base) as *mut i32;
-                let cur_ptr = base.add(*cur as usize);
+                
+                //free_rec(*base, offs as usize, cur);
+                let cur_ptr = base.add(*cur as usize) as *mut i32;
+                let cur_snd = base.add(1);
 
-                let new_free = base.add(offs as usize);
+                let new_free = base.add(offs as usize) as *mut i32;
                 let offs_to_cur = *cur - offs;
                 *new_free = offs_to_cur;
                 *cur = offs;
 
+                *alloc_free.lock().unwrap() -= 1;
                 //println!("Free'd {offs} {:?}", fl);
             });
             let print_val = Func::wrap(&mut store, |_tp_idx: i32, _ptr: i32| ());
 
             let module = Module::from_file(store.engine(), f).unwrap();
-            //let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
-            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), print_val.into()]).unwrap();
+            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            //let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), print_val.into()]).unwrap();
 
             let serialize_types = instance.get_typed_func::<(), i32>(&mut store, "serialize_types").unwrap();
             let len = serialize_types.call(&mut store, ()).unwrap();
@@ -88,8 +134,8 @@ fn main() {
                 println!("{}", val_to_string(*base, &types_json, &tp, ptr));
             });
 
-            //let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
-            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), print_val.into()]).unwrap();
+            let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), free.into(), print_val.into()]).unwrap();
+            //let instance = Instance::new(&mut store, &module, &[mem.into(), alloc.into(), print_val.into()]).unwrap();
             unsafe {
                 let sz = mem.data_size(&store) / 4;
                 for i in 0..sz {
@@ -98,11 +144,9 @@ fn main() {
             }
 
             let main = instance.get_typed_func::<(), i32>(&mut store, "main").unwrap();
-            for _ in 0..1 {
-                let res = main.call(&mut store, ()).unwrap();
-                //println!("{res}");
-            }
+            let _res = main.call(&mut store, ()).unwrap();
 
+            println!("allocs: {}", *allocs.lock().unwrap());
             unsafe {
                 let mut mem_buf: Vec<i32> = vec![];
                 let mut ptr = mem_ptr as *mut i32;

@@ -50,11 +50,11 @@ let mod_imports = [
         item_name = Wasm.Utf8.decode "alloc";
         idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.pair_to_i32) |> Compiler.to_region (* alloc *)
     };
-    (*W.{*)
-    (*    module_name = Wasm.Utf8.decode "";*)
-    (*    item_name = Wasm.Utf8.decode "free";*)
-    (*    idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.i32_to_unit) |> Compiler.to_region (* free *)*)
-    (*};*)
+    W.{
+        module_name = Wasm.Utf8.decode "";
+        item_name = Wasm.Utf8.decode "free";
+        idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.pair_to_unit) |> Compiler.to_region (* free *)
+    };
     W.{
         module_name = Wasm.Utf8.decode "";
         item_name = Wasm.Utf8.decode "print_val";
@@ -68,7 +68,7 @@ let mk_mod funcs datas main_idx = W.{
     funcs = funcs |> List.map ~f:Compiler.to_region;
     imports = mod_imports |> List.map ~f:Compiler.to_region;
     exports = [
-        { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm 2) |> Compiler.to_region} |> Compiler.to_region;
+        { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm (Compiler.fn_idxs.print_val + 1)) |> Compiler.to_region} |> Compiler.to_region;
         { name = Wasm.Utf8.decode "main"; edesc = FuncExport (Compiler.to_wasm_imm (main_idx + Compiler.fn_idxs.print_val + 2)) |> Compiler.to_region } |> Compiler.to_region;
     ];
     datas;
@@ -91,7 +91,7 @@ let main () =
     let (main_idx, _) = List.findi_exn proc_ls ~f:(fun i (n, _) -> String.equal n "main") in
     let printer = Wasm_print.mk_printer type_ls in
     (*let tags = Wasm_print.prog_tags env in*)
-    let compile_env = Compiler.{ type_names; procs; proc_ls = proc_ls |> List.map ~f:fst } in
+    let compile_env = Compiler.{ type_names; type_ls = type_ls |> List.map ~f:fst ; procs; proc_ls = proc_ls |> List.map ~f:fst } in
     let (compile_dest, asm) = Compiler.compiler compile_env in
     let funcs = List.map proc_ls ~f:(fun (n, (d, a, b)) ->
         Printf.printf "proc %s:\n" n;
@@ -120,7 +120,10 @@ let main () =
                 let (t_idx, _) = List.findi_exn type_ls ~f:(fun i (n, _) -> String.equal dt n) in
                 wasm @ 
                     [W.Const (to_wasm_int t_idx |> to_region); W.Call (fn_idxs.print_val |> to_wasm_imm); 
-                    W.Const (to_wasm_int 0 |> to_region); W.Const (to_wasm_int 0 |> to_region); W.Call (fn_idxs.alloc |> to_wasm_imm)]
+                    (* run alloc and free so wasm-opt doesnt remove them via dce :/ *)
+                    W.Const (to_wasm_int 0 |> to_region); W.Const (to_wasm_int 0 |> to_region); W.Call (fn_idxs.alloc |> to_wasm_imm);
+                    W.Const (to_wasm_int 0 |> to_region); W.Call (fn_idxs.free |> to_wasm_imm);
+                    W.Const (to_wasm_int 0 |> to_region)]
         | _ -> wasm
         in
 

@@ -28,7 +28,7 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type compile_env = { type_names : type_name_map; procs : proc_map; proc_ls : string list }
+type compile_env = { type_names : type_name_map; type_ls : string list; procs : proc_map; proc_ls : string list }
 
 type type_idx_map = {
     unit_fn : int;
@@ -56,7 +56,7 @@ type fn_idx_map = {
 }
 
 let fn_idxs : fn_idx_map = {
-    alloc = 0; free = -1; print_val = 1
+    alloc = 0; free = 1; print_val = 2
 }
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t
@@ -117,6 +117,10 @@ let is_tag s = function
 | InjTag s' when String.equal s s' -> true
 | _ -> false
 
+let is_inj s = function
+| InjData s' when String.equal s s' -> true
+| _ -> false
+
 let is_fst (s : string) : stack_val -> bool = function
 | PairFst s' when String.equal s s' -> true
 | _ -> false
@@ -146,7 +150,7 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | AliasPair of (string * (string * string))
                 | Move of (string * string) (* moves values between refs *)
                 | Call of (string * string * string list)
-                | Switch of (string * (int * (macro_inst list)) list) (* switches on top of stack *)
+                | Switch of (string * int * (int * (macro_inst list)) list) (* switches on top of stack *)
                 | PushTag of (int * string)
                 | PushUnit of string
                 | GetUnit of string
@@ -164,8 +168,8 @@ let rec print_macro_inst = function
 | AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s\n" l r p
 | Move (l, r) -> Printf.printf "Move %s to %s\n" r l
 | Call (p, d, ps) -> Printf.printf "Call %s (%s) into %s\n" p (String.concat ~sep:", " ps) d
-| Switch (s, ls) -> 
-        Printf.printf "Switch (%s)\n" s;
+| Switch (s, tp_idx, ls) -> 
+        Printf.printf "Switch (%s) [tp_idx: %d]\n" s tp_idx;
         List.iter ls ~f:(fun (i, is) ->
             Printf.printf "Case %d:\n" i;
             List.iter is ~f:print_macro_inst)
@@ -211,7 +215,7 @@ let compiler (env : compile_env) =
 
         and get_inj (s : string) : W.instr' list = match st.stack with
         | (InjData v) :: _ when String.equal v s -> [] (* already on top of stack *)
-        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_tag s v) with
+        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_inj s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_fst] )
 
@@ -338,8 +342,52 @@ let compiler (env : compile_env) =
                 else
                     (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
                 end
-         | (Switch (s, ls)) :: xs ->
-                 let get_tag_instrs = get_tag s in
+         | (Switch (s, tp_idx, ls)) :: xs ->
+                 (* TODO: cleanup, optimize to bulk load *)
+                 let need_inj =
+                     let tp = List.nth_exn env.type_ls tp_idx in
+                     let Plus ls = fix (TpName tp) in
+                     List.exists ls ~f:(fun (_l, t) -> match t with | One -> false | _ -> true)
+                 in
+                 let (dealloc_instrs, st) = match st.stack with
+                 | (InjTag t) :: _rest when String.equal s t && (not need_inj) ->
+                         let (i, st') = put_local st in
+                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                         (i, st')
+                 | (InjTag t) :: (InjData t') :: _rest when String.equal s t && String.equal s t' ->
+                         let (i1, st') = put_local st in
+                         let (i2, st'') = put_local st' in
+                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                         (i1 @ i2, st'')
+                 | _ when need_inj -> 
+                         let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
+                         let has_inj_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_inj s v) in
+                         if not (has_tag_local && has_inj_local) then
+                             let get_inj = get_inj s in
+                             let (put_inj, st') = put_local { st with stack = (InjData s) :: st.stack } in
+                             let get_tag = get_tag s in
+                             let (put_tag, st'') = put_local { st' with stack = (InjTag s) :: st'.stack } in
+                             let get_addr = get_addr s in
+                             let push_tp_idx = [W.Const (to_wasm_int tp_idx |> to_region)] in
+                             let free = [W.Call (to_wasm_imm fn_idxs.free)] in
+                             wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                             (get_inj @ put_inj @ get_tag @ put_tag @ get_addr @ push_tp_idx @ free, st'')
+                             (*(get_inj @ put_inj @ get_tag @ put_tag, st'')*)
+                         else
+                             ([], st)
+                 | _ -> (* don't need inj *)
+                         let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
+                         if not has_tag_local then
+                             let get_tag = get_tag s in
+                             let (put_tag, st') = put_local { st with stack = (InjTag s) :: st.stack } in
+                             (get_tag @ put_tag, st')
+                         else
+                             ([], st)
+                 in
+                 let get_tag_instrs =
+                     let (i, _) = List.findi_exn st.locals ~f:(fun _i v -> is_tag s v) in
+                     [W.LocalGet (to_wasm_imm i)]
+                 in
                  let n = List.length ls in
                  (*let bt = W.ValBlockType (Some (WT.NumT I32T)) in *)
                  let bt = W.ValBlockType None in
@@ -358,7 +406,7 @@ let compiler (env : compile_env) =
                      W.Block (bt, (acc :: asm is inner_st wf) |> List.map ~f:to_region))
                  in
                  if not ((List.length xs) = 0) then raise Todo;
-                 [switch]
+                 dealloc_instrs @ [switch]
     in
 
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
@@ -402,7 +450,11 @@ let compiler (env : compile_env) =
                           let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
                           (i, (AliasInj (v, v')) :: is))
                       in
-                      ([Switch (v, case_instrs)], wasm_func))
+                      let tp_idx =
+                          let TpName tp_name = Map.find_exn vars v in
+                          List.findi_exn env.type_ls ~f:(fun _i n -> String.equal tp_name n) |> fst
+                      in
+                      ([Switch (v, tp_idx, case_instrs)], wasm_func))
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in

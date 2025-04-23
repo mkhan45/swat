@@ -1,9 +1,14 @@
 # General structure
 
-The stack has stack_vals. Some stack vals are named addresses, some are components. But some components
-might also be addresses themselves. So we build a graph.
+dest is the top of the stack
 
-dest is the top of the stack.
+# TODO 3
+
+1. make free follow refs?
+    - I guess not, because the refs will be on the stack, and can be discarded later
+2. negative types
+3. should free pairs read by switch
+4. let functions return pairs, and only allocate when needed
 
 # TODO 2
 

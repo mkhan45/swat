@@ -1,0 +1,8 @@
+type pair = int * int
+
+proc main (d : pair) =
+    cut l : int
+        call _const_1 l
+    cut r : int
+        call _const_2 r
+    write d (l, r)
