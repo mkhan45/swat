@@ -29,5 +29,5 @@ proc main (d : int) =
     cut a : int
         call _const_3 a
     cut b : int
-        call _const_9 b
+        call _const_10 b
     call ack d a b

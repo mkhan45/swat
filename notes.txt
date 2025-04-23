@@ -9,6 +9,10 @@ dest is the top of the stack
 2. negative types
 3. should free pairs read by switch
 4. let functions return pairs, and only allocate when needed
+5. make tailrecs actually loop?
+    - idk how bad wasmtime is
+6. reuse optimization
+7. maybe try wasmer
 
 # TODO 2
 
