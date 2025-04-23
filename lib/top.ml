@@ -96,7 +96,8 @@ let main () =
     let funcs = List.map proc_ls ~f:(fun (n, (d, a, b)) ->
         Printf.printf "proc %s:\n" n;
         let vars = Map.of_alist_exn (module String) a in
-        let func_env = Compiler.empty_func_env () in
+        let (ret_dest, _) = d in
+        let func_env = Compiler.empty_func_env n ret_dest in
         let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars func_env in
         List.iter insts ~f:Compiler.print_macro_inst;
         Compiler.print_func_env e;

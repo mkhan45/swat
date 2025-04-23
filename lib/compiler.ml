@@ -72,8 +72,8 @@ let addr_to_string = function
 type addr_map = (string, wasm_addr, String.comparator_witness) Map.t
 type string_set = (string, String.comparator_witness) Set.t
 
-type wasm_func_env = { read_in_func : string_set ref; nlocals : int ref }
-let empty_func_env () = { read_in_func = ref @@ Set.empty (module String); nlocals = ref 0 }
+type wasm_func_env = { read_in_func : string_set ref; nlocals : int ref; name : string; ret_dest : string }
+let empty_func_env name ret_dest = { read_in_func = ref @@ Set.empty (module String); nlocals = ref 0; name; ret_dest }
 let print_func_env env = ()
     (*let addr_ls = Map.to_alist env.addrs in*)
     (*let addr_s = String.concat ~sep:", " (List.map addr_ls ~f:(fun (s, a) -> s ^ ":" ^ (addr_to_string a))) in*)
@@ -321,7 +321,11 @@ let compiler (env : compile_env) =
                     (* | Times (_, _) -> (PairSnd d) :: (PairFst d) :: rest*)
                     (* | Plus _ -> (InjTag d) :: (InjData d) :: rest)*)
                 in
-                (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
+                begin if (String.equal d wf.ret_dest) && not (String.equal "main" wf.name) then
+                    (W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
+                else
+                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
+                end
          | (Switch (s, ls)) :: xs ->
                  let get_tag_instrs = get_tag s in
                  let n = List.length ls in

@@ -32,3 +32,4 @@ tests/*.sax.val
 ./sax
 sax
 test.wasm
+tests/*.wat
