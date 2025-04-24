@@ -32,9 +32,9 @@ WASM is lower-level than Sax and exposes details like stack and local layout, so
 when starting this project I spent a lot of time and effort trying to optimize these.
 However, WASM runtimes often include JIT compilers that make precise stack and local layout
 irrelevant to performance. Additionally, `wasm-opt` is a CLI tool and library that runs
-many optimization passes, including local allocation. Thus, the main focus of this compiler
+many optimization passes, including local allocation. So the main focus of this compiler
 is on exploiting linear typing's advantages for memory allocation, with an eye on maintaining
-extensibility for adjoint Sax.
+extensibility for supporting adjoint Sax through WASM GC.
 
 The variant of Sax implemented by this compiler is a modified version of the core linear, positive
 fragment introduced in Lab 1, with two additions. First, it supports 32-bit signed integers,
@@ -146,6 +146,14 @@ Possible stack values are as follow:
     - Integers are passed by value
 
 == Cuts and Locals
+
+Using our invariants the cut translation is pretty straightforward. Since the destination 
+of any command is the top of the stack, we know that the cut variable will be on top,
+either as components as a single address. With our stack representation, we can differentiate each case.
+
+The binding created by cut should be randomly accessible by the second command, so we greedily make 
+a local for each cut in case it is not on top of the stack when needed. This creates a lot of churn
+and local rewriting but `wasm-opt` handles it.
 
 == Allocation
 
