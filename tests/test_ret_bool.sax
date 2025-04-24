@@ -1,0 +1,19 @@
+type bool = +{ 'false : 1, 'true : 1 }
+
+proc eqz (d : bool) (n : int) =
+    call _eqz_ d n
+
+proc sw (d : int) (t : bool) (n : int) =
+    read t {
+    | 'true(u) => id d n
+    | 'false (u) => cut x : int
+                      call _const_10 x
+                   call _add_ d x n
+    }
+
+proc main (d : int) =
+    cut n : int
+        call _const_5 n
+    cut t : bool
+        call eqz t n
+    call sw d t n

@@ -250,6 +250,12 @@ let compiler (env : compile_env) =
         | [] -> (match st.stack with
                  | (Addr _ | Int _ | Unit _) :: [] -> if not (String.equal "main" wf.name) then [W.Return] else []
                  | _ :: _ :: [] -> if not (String.equal "main" wf.name) then [W.ReturnCall (to_wasm_imm fn_idxs.alloc)] else [W.Call (to_wasm_imm fn_idxs.alloc)]
+                 | (InjTag s) :: [] ->
+                         (* special case, it's a bool, put a 0 in front of it and alloc *)
+                        let (i1, st') = put_local st in
+                        wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                        let (local_idx, _) = List.findi_exn st'.locals ~f:(fun _i v -> is_tag s v) in
+                        i1 @ [W.Const (to_wasm_int 0 |> to_region); W.LocalGet (to_wasm_imm local_idx); W.ReturnCall (to_wasm_imm fn_idxs.alloc)]
                  | _ ->
                          Printf.printf "err: [%s]\n" @@ print_stack st.stack;
                          raise Todo
@@ -502,7 +508,7 @@ let compiler (env : compile_env) =
                                           2. get captures (don't bother reading yet cause it's a pain)
                                           3. put ref on stack *)
                                        raise Todo
-                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
+                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func))
             | TpName "int" -> (match cmd with
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
                                | _ -> raise TypeError)
