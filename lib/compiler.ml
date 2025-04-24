@@ -80,6 +80,7 @@ let print_func_env env = ()
     (*Printf.printf "addrs: { %s }\nstacklen: %d" addr_s env.stacklen*)
 
 type stack_val = Addr of string
+               | GcRef of string
                | InjTag of string
                | InjData of string
                | PairFst of string
@@ -89,6 +90,7 @@ type stack_val = Addr of string
 
 let print_stack_val : stack_val -> string = function
 | Addr s -> "adr " ^ s
+| GcRef s -> "gcr " ^ s
 | InjTag s -> "tag " ^ s
 | InjData s -> "inj " ^ s
 | PairFst s -> "fst " ^ s
@@ -494,6 +496,13 @@ let compiler (env : compile_env) =
                                  |_ -> ([GetAddr v'; push_idx], wasm_func))
                           | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
                           | _ -> raise TypeError)
+            | Arrow (itp, otp) -> (match cmd with
+                               | S.WriteCont (v, [(S.PairPat (i, o), body)]) ->
+                                       (* 1. generate a top level def from body
+                                          2. get captures (don't bother reading yet cause it's a pain)
+                                          3. put ref on stack *)
+                                       raise Todo
+                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
             | TpName "int" -> (match cmd with
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
                                | _ -> raise TypeError)

@@ -79,7 +79,19 @@ fn main() {
                 //println!("Alloc'd {res} with ({v1},{v2})");
                 res
             });
-            // TODO: fix free
+            let alloc_clo = Func::wrap(&mut store, move |mut caller: Caller<'_, (*mut u8, i32)>, fn_idx: i32, n_captures: i32| unsafe {
+                let &mut (ref mut base, ref mut cur) = caller.data_mut();
+                let res = *cur;
+                let cur_ptr = base.add(*cur as usize) as *mut i32;
+                let next_free = *cur_ptr;
+                *cur_ptr = v1;
+                *(cur_ptr.add(1)) = v2;
+                *cur += next_free;
+
+                *alloc_alloc.lock().unwrap() += 1;
+                //println!("Alloc'd {res} with ({v1},{v2})");
+                res
+            });
             let free = Func::wrap(&mut store, move |mut caller: Caller<'_, (*mut u8, i32)>, offs: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
                 

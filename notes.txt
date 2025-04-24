@@ -6,8 +6,10 @@ dest is the top of the stack
 
 1. Negatives
     - probably just closures, no records
-    - need `alloc_clo(fn_idx, n_args),` and `free_clo(fn_idx, n_args)`
-        - could be written on top of base alloc and free but pain
+    - gotta just GC them
+        - realistically in adjoint sax, most closures would not be linear 
+    - means that stack vals may be GC refs
+        - when generating func types, have to use gc ref instead of i32 for arrow args and ret
 2. Report
 
 # TODO 3

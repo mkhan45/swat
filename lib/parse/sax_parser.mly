@@ -82,6 +82,13 @@ cmd :
     x = IDENT;
     pat = pat;
     { Ast.Write(x, pat) }
+  | WRITE;
+    x = IDENT;
+    LBRACE;
+    branch = branch;
+    branches = branches;
+    RBRACE;
+    { Ast.WriteCont(x, branch::branches) }
   | CUT;
     x = IDENT;
     COLON;
@@ -165,6 +172,10 @@ tp :
     STAR;
     tau2 = tp;
     { Ast.Times(tau1, tau2) }
+  | tau1 = tp;
+    RIGHTARROW;
+    tau2 = tp;
+    { Ast.Arrow(tau1, tau2) }
   | n = NAT;
     { if n = 1 then Ast.One
       else ( Error_msg.error errors None "only '1' is a type" ; raise Error_msg.Error ) }

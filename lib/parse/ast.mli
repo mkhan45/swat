@@ -8,6 +8,7 @@
     type tp = Times of tp * tp
             | One
             | Plus of (label * tp) list
+            | Arrow of tp * tp
             | TpName of tpname
     (* | MarkedTp of tp Mark.marked *)
 
@@ -21,6 +22,7 @@
 
     type cmd = Read of varname * (pat * cmd) list
              | Write of varname * pat
+             | WriteCont of varname * (pat * cmd) list
              | Cut of varname * tp * cmd * cmd
              | Id of varname * varname
              | Call of procname * varname * varname list
