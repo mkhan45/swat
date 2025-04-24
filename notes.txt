@@ -7,12 +7,17 @@ dest is the top of the stack
 1. make free follow refs?
     - I guess not, because the refs will be on the stack, and can be discarded later
 2. negative types
+    - Closures represented by { captures : addr list; func_idx : int }
+    - records represented by { captures : addr list; record_inst_idx : int }
+        - record_inst_idxs are static
+    - in rust, let addr list be allocated by Vec
 3. should free pairs read by switch
 4. let functions return pairs, and only allocate when needed
 5. make tailrecs actually loop?
     - idk how bad wasmtime is
 6. reuse optimization
 7. maybe try wasmer
+    - could also try browser by writing the runtime stuff in JS or WASM
 
 # TODO 2
 
