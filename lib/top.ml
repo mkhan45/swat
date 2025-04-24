@@ -53,7 +53,7 @@ let mod_imports = [
     W.{
         module_name = Wasm.Utf8.decode "";
         item_name = Wasm.Utf8.decode "free";
-        idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.pair_to_unit) |> Compiler.to_region (* free *)
+        idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.i32_to_unit) |> Compiler.to_region (* free *)
     };
     W.{
         module_name = Wasm.Utf8.decode "";
@@ -122,7 +122,7 @@ let main () =
                     [W.Const (to_wasm_int t_idx |> to_region); W.Call (fn_idxs.print_val |> to_wasm_imm); 
                     (* run alloc and free so wasm-opt doesnt remove them via dce :/ *)
                     W.Const (to_wasm_int 0 |> to_region); W.Const (to_wasm_int 0 |> to_region); W.Call (fn_idxs.alloc |> to_wasm_imm);
-                    W.Const (to_wasm_int 0 |> to_region); W.Call (fn_idxs.free |> to_wasm_imm);
+                    W.Call (fn_idxs.free |> to_wasm_imm);
                     W.Const (to_wasm_int 0 |> to_region)]
         | _ -> wasm
         in

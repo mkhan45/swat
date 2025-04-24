@@ -1,10 +1,11 @@
 (module
  (type $4 (func (result i32)))
  (type $6 (func (param i32 i32) (result i32)))
+ (type $1 (func (param i32)))
  (type $5 (func (param i32 i32)))
  (import "" "mem" (memory $0 1))
  (import "" "alloc" (func $0 (param i32 i32) (result i32)))
- (import "" "free" (func $1 (param i32 i32)))
+ (import "" "free" (func $1 (param i32)))
  (import "" "print_val" (func $2 (param i32 i32)))
  (data $0 "{\"int\":\"int\",\"bin\":{\"\'b0\":\"bin\",\"\'b1\":\"bin\",\"\'e\":null},\"list\":{\"\'nil\":null,\"\'cons\":[\"bin\",\"list\"]}}")
  (export "serialize_types" (func $3))
@@ -32,7 +33,6 @@
   )
   (call $1
    (local.get $0)
-   (i32.const 2)
   )
   (if
    (i32.ne
@@ -44,6 +44,19 @@
      (local.get $1)
     )
    )
+  )
+  (drop
+   (i32.load
+    (local.get $2)
+   )
+  )
+  (drop
+   (i32.load offset=4
+    (local.get $2)
+   )
+  )
+  (call $1
+   (local.get $2)
   )
   (local.set $0
    (call $0
@@ -148,7 +161,6 @@
   )
   (call $1
    (local.get $0)
-   (i32.const 2)
   )
   (if
    (i32.ne
@@ -160,6 +172,19 @@
      (local.get $1)
     )
    )
+  )
+  (drop
+   (i32.load
+    (local.get $2)
+   )
+  )
+  (drop
+   (i32.load offset=4
+    (local.get $2)
+   )
+  )
+  (call $1
+   (local.get $2)
   )
   (local.set $0
    (call $12
@@ -217,7 +242,6 @@
     (i32.const 0)
     (i32.const 0)
    )
-   (i32.const 0)
   )
   (i32.const 0)
  )

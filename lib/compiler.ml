@@ -148,6 +148,7 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | InitAddr of string (* allocates a cell with name *)
                 | AliasInj of (string * string)
                 | AliasPair of (string * (string * string))
+                | DerefPair of string
                 | Move of (string * string) (* moves values between refs *)
                 | Call of (string * string * string list)
                 | Switch of (string * int * (int * (macro_inst list)) list) (* switches on top of stack *)
@@ -166,6 +167,7 @@ let rec print_macro_inst = function
 | InitAddr s -> Printf.printf "Init %s\n" s
 | AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
 | AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s\n" l r p
+| DerefPair (p) -> Printf.printf "DerefPair %s\n" p
 | Move (l, r) -> Printf.printf "Move %s to %s\n" r l
 | Call (p, d, ps) -> Printf.printf "Call %s (%s) into %s\n" p (String.concat ~sep:", " ps) d
 | Switch (s, tp_idx, ls) -> 
@@ -279,6 +281,15 @@ let compiler (env : compile_env) =
                 (*else*)
                 (*    asm xs { st with addrs = graph } wf*)
                 (*end*)
+        | (DerefPair s) :: xs -> 
+                let get_fst = get_fst s in
+                let (put_fst, st') = put_local { st with stack = (PairFst s) :: st.stack } in
+                let get_snd = get_snd s in
+                let (put_snd, st'') = put_local { st' with stack = (PairSnd s) :: st'.stack } in
+                let get_addr = get_addr s in
+                let free = [W.Call (to_wasm_imm fn_idxs.free)] in
+                wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
+                (get_fst @ put_fst @ get_snd @ put_snd @ get_addr @ free) @ asm xs st wf
         | (GetUnit s) :: xs ->
                 (match get_unit s with
                                 | [] -> asm xs st wf (* already on stack *)
@@ -353,33 +364,39 @@ let compiler (env : compile_env) =
                  | (InjTag t) :: _rest when String.equal s t && (not need_inj) ->
                          let (i, st') = put_local st in
                          wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                         Printf.printf "1\n";
                          (i, st')
                  | (InjTag t) :: (InjData t') :: _rest when String.equal s t && String.equal s t' ->
                          let (i1, st') = put_local st in
                          let (i2, st'') = put_local st' in
                          wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                         Printf.printf "2\n";
                          (i1 @ i2, st'')
-                 | _ when need_inj -> 
+                 | _ when need_inj ->
                          let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
                          let has_inj_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_inj s v) in
-                         if not (has_tag_local && has_inj_local) then
+                         if not (has_tag_local && has_inj_local) then (
+                             Printf.printf "3.1\n";
                              let get_inj = get_inj s in
                              let (put_inj, st') = put_local { st with stack = (InjData s) :: st.stack } in
                              let get_tag = get_tag s in
                              let (put_tag, st'') = put_local { st' with stack = (InjTag s) :: st'.stack } in
                              let get_addr = get_addr s in
-                             let push_tp_idx = [W.Const (to_wasm_int tp_idx |> to_region)] in
                              let free = [W.Call (to_wasm_imm fn_idxs.free)] in
-                             wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
-                             (get_inj @ put_inj @ get_tag @ put_tag @ get_addr @ push_tp_idx @ free, st'')
+                             wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
+                             (get_inj @ put_inj @ get_tag @ put_tag @ get_addr @ free, st'')
                              (*(get_inj @ put_inj @ get_tag @ put_tag, st'')*)
-                         else
+                         ) else (
+                             Printf.printf "3.2\n";
                              ([], st)
+                        )
                  | _ -> (* don't need inj *)
+                         Printf.printf "4\n";
                          let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
                          if not has_tag_local then
                              let get_tag = get_tag s in
                              let (put_tag, st') = put_local { st with stack = (InjTag s) :: st.stack } in
+                             wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
                              (get_tag @ put_tag, st')
                          else
                              ([], st)
@@ -440,7 +457,7 @@ let compiler (env : compile_env) =
                                let inner_env = vars |> Map.set ~key:lv ~data:lt |> Map.set ~key:rv ~data:rt in
                                let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
                                (* TODO: *)
-                               ((AliasPair (v, (lv, rv)) :: is), wasm_func)
+                               (((DerefPair v) :: AliasPair (v, (lv, rv)) :: is), wasm_func)
                        | _ -> raise BadMatch)
               | Plus ls -> 
                       let bs = List.map bs ~f:(function (InjPat (l, v), b) -> (l, (v, b)) | _ -> raise BadMatch) in

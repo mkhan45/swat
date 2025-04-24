@@ -45,28 +45,6 @@ enum FreeType {
     Pair(usize, usize),
 }
 
-// TODO: free that follows ptrs
-unsafe fn free_rec(mem_ptr: *mut u8, ptr: usize, fl_head: &mut i32, types: &FreeType, tp_idx: usize) {
-    let fl_head_ptr = mem_ptr.add(*fl_head as usize) as *mut i32;
-
-    let free_fst_ptr = mem_ptr.add(ptr) as *mut i32;
-    let free_snd_ptr = mem_ptr.add(ptr + 1) as *mut i32;
-    let free_fst = *free_fst_ptr;
-    let free_snd = *free_snd_ptr;
-
-    let offs_to_prev_fl = *fl_head - (ptr as i32);
-    *free_fst_ptr = offs_to_prev_fl;
-    *fl_head = ptr as i32;
-
-    //if ((free_fst_ptr as *mut u8)> mem_ptr) {
-    //    free_rec(mem_ptr, free_fst, fl_head);
-    //}
-    //
-    //if ((free_snd_ptr as *mut u8)> mem_ptr) {
-    //    free_rec(mem_ptr, free_fst, fl_head);
-    //}
-}
-
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
 
@@ -102,7 +80,7 @@ fn main() {
                 res
             });
             // TODO: fix free
-            let free = Func::wrap(&mut store, move |mut caller: Caller<'_, (*mut u8, i32)>, offs: i32, tp_idx: i32| unsafe {
+            let free = Func::wrap(&mut store, move |mut caller: Caller<'_, (*mut u8, i32)>, offs: i32| unsafe {
                 let &mut (ref mut base, ref mut cur) = caller.data_mut();
                 
                 //free_rec(*base, offs as usize, cur);
