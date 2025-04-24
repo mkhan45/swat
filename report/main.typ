@@ -12,16 +12,22 @@
 = Abstract
 #lorem(120)
 
-= Introduction
-
 Sax is an intermediate representation (IR) that helps bridge the gap between
 high level, richly typed languages and lower level imperative execution.
 WebAssembly (WASM) is a bytecode instruction set focused on speed, security, and portability.
 It is an appealing compilation target because it can be run quickly and securely
 on many platforms, including embedded devices and web browsers, and is used
-in industry for accelerating web performance or running untrusted code.
+in industry for accelerating web performance or running untrusted code. In this paper,
+I detail the structure and implementation of a Sax to WASM compiler, supporting purely linear
+types and 32-bit integers.
 
-remember to include sax support for ints
+= Introduction
+
+The main focus of compiler ... minimize allocations
+something about ints
+expected performance
+
+#lorem(20)
 
 === WASM Structure
 

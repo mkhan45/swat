@@ -2,6 +2,14 @@
 
 dest is the top of the stack
 
+# TODO 4
+
+1. Negatives
+    - probably just closures, no records
+    - need `alloc_clo(fn_idx, n_args),` and `free_clo(fn_idx, n_args)`
+        - could be written on top of base alloc and free but pain
+2. Report
+
 # TODO 3
 
 1. make free follow refs?
