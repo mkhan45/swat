@@ -25,7 +25,6 @@ types and 32-bit integers.
 #v(8pt)
 
 #set heading(numbering: "1.1")
-#show heading.where(level: 2): it => text(size: 0.9em, it)
 
 = Introduction
 
@@ -168,7 +167,7 @@ The basic translation judgement is:
 $ S_I ⊢ [| c |] = (W ; S_O) $
 
 meaning that Sax command $c$ yields a list of WASM instructions $W$ and a stack representation $S_O$. Our rules will be used pretty
-informally, and leave out some info about state.
+informally, and leave out some info about state. It leaves skips stack IR step, so there are some slight differences from the code.
 
 == Allocation and Value Layout
 
@@ -232,12 +231,36 @@ if there are multiple cases.
 == Write
 
 Write commands move something onto the top of the stack.
+$
+    #prooftree(rule(
+        name: [$"Write"_"Unit"$],
+        [$S ⊢ [| bold("write") d" "() |] = bold("i32.const") 0 ; () :: S$],
+    ))
+$
 
-#lorem(60)
+$
+    #prooftree(rule(
+        name: [$"Write"_"Pair"$],
+        [$S ⊢ [| bold("write") d" "(pi_1,pi_2) |] = bold("local.get") L_(pi_1) :: bold("local.get") L_(pi_2); "PairFst d" :: "PairSnd d" :: S$],
+    ))
+$
+
+$
+    #prooftree(rule(
+        name: [$"Write"_"Plus"$],
+        [$S ⊢ [| bold("write") d" " \'l(a) |] = bold("local.get") a :: bold("i32.const") T; "InjTag d" :: "InjData d" :: S$],
+    ))
+$
 
 == Calls and Tail Calls
 
-The call translation is straightforward. ...
+The call translation is straightforward.
+$
+    #prooftree(rule(
+        name: [Call],
+        [$S ⊢ [| bold("call") p" "d" "a_1 ... a_n |] = bold("local.get") L_(a_1) ... L_(a_n) :: bold("call") p; "Addr d" :: S $],
+    ))
+$
 
 Sax's only iteration construct is recursion. To avoid stack-overflows, we need to properly tail
 recurse on tail-recursive Sax functions. This is straightforward using WASM's tail call proposal,
@@ -249,8 +272,12 @@ of the whole function. Then, it suffices to replace the WASM `call` instruction 
 
 == Id
 
-Id is very simple. We just need to ensure that the required address is on top of the stack; there are two
+Id is similar to Write. We just need to ensure that the required address is on top of the stack; there are two
 cases. If it is already on top, we continue, otherwise we must fetch it from our locals.
+
+== Closures
+
+#lorem(40)
 
 == Printing
 
@@ -265,7 +292,7 @@ data segments. This undoubtedly makes printing pretty slow.
 
 We implement a few optimizations, mostly aimed at minimizing allocations.
 
-=== Cut/Read
+=== Unboxed Cut/Read
 
 If the variable instantiated by a cut is read in the same function, we skip allocating it.
 Instead, we put its components in locals. This modifies the translation rules for Cut and Read.
@@ -276,15 +303,68 @@ The simple Cut/Id optimization is implicit through our translation of Id.
 
 === Vertical Reuse
 
-Though we could easily implement vertical reuse in the compilation, 
+Though we could easily implement vertical reuse in the compilation, it might be interesting
+to note that it the allocator design replicates this behavior, since the freelist is essentially
+a stack and the most recently freed cells are the next allocated ones. Implementing it through
+the compiler would save some freelist manipulation but the performance gain might be quite small.
 
-== Runtime
+=== Future Work: Lazily allocating function returns
 
-#lorem(480)
+Currently, cuts within a function are not allocated if they are Read within the function. It might
+make sense to let all functions return without allocating first, so the caller can decide not to
+allocate if the return is Read.
+
+#lorem(40)
 
 = Evaluation
 
-#lorem(480)
+Holistically, the generated code looks good. The optimizations catch many overaggressive allocations,
+and `wasm-opt` minimizes stack and local manipulation.
+
+TODO: some examples
+
+== Benchmarks
+
+#lorem(60)
+
+== Iteration and Tail Calls
+
+Despite using WASM's native tail calls, iteration speed is pretty slow. For the `sum_tailrec`
+function in @sum_tailrec  the compiler generates pretty idiomatic recursive WASM below. 
+After hand-translating it to a loop, it becomes around 10x faster for summing the first billion integers.
+
+#figure(
+```wat
+ (func $sum_tailrec (param $0 i32) (param $1 i32) (result i32)
+  (if (local.get $0)
+   (then (return_call $8 
+         (i32.sub (local.get $0) (i32.const 1))
+         (i32.add (local.get $0) (local.get $1)))))
+  (local.get $1))
+```,
+caption: [compiled `sum_tailrec`, tail recursive],
+kind: "example",
+supplement: "Example"
+) <sum_tailrec_rec>
+
+#figure(
+```wat
+(func $sum_loop (param $0 i32) (param $1 i32) (result i32)
+  (block $done
+    (loop $continue
+      (br_if $done (i32.eqz (local.get $0)))
+      (local.set $1 (i32.add (local.get $0) (local.get $1)))
+      (local.set $0 (i32.sub (local.get $0) (i32.const 1)))
+      (br $continue)))
+  (local.get $1))
+```,
+caption: [compiled `sum_tailrec`, loop],
+kind: "example",
+supplement: "Example"
+) <sum_tailrec_rec>
+
+This is probably runtime dependent, and might be fixed by a Wasmtime update. However, a more robust 
+compiler might want to turn some recursive functions into loops.
 
 = Related Work
 
@@ -293,3 +373,5 @@ Though we could easily implement vertical reuse in the compilation,
 = Conclusion
 
 #lorem(120)
+
+== Future Work
