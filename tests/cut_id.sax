@@ -9,3 +9,13 @@ proc pred (d : nat) (x : nat) =
                   write d 'zero(w)
     | 'succ(y) => id d y
     }
+
+proc one (d : nat) =
+  cut z : nat
+    call zero z
+    call succ d z
+
+proc main (d : nat) =
+    cut o : nat
+        call one o
+    call pred d o

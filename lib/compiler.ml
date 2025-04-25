@@ -121,14 +121,18 @@ let is_tag s = function
 | InjTag s' when String.equal s s' -> true
 | _ -> false
 
-let is_inj s = function
+let is_inj s st = function
 | InjData s' when String.equal s s' -> true
+| Addr s'' -> 
+        Option.value_map ~default:false (Map.find st.addrs s'') ~f:(fun rels ->
+                    List.exists rels ~f:(function
+                    | InjVal s' when String.equal s s' -> true
+                    | _ -> false))
 | _ -> false
 
 let is_fst (s : string) (st : asm_state) : stack_val -> bool = function
 | PairFst s' when String.equal s s' -> true
 | Addr s'' -> 
-        Printf.printf "s'': %s\n" s'';
         Option.value_map ~default:false (Map.find st.addrs s'') ~f:(fun rels ->
                     List.exists rels ~f:(function
                     | PairFst s' when String.equal s s' -> true
@@ -229,7 +233,7 @@ let compiler (env : compile_env) =
 
         and get_inj (s : string) : W.instr' list = match st.stack with
         | (InjData v) :: _ when String.equal v s -> [] (* already on top of stack *)
-        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_inj s v) with
+        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_inj s st v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_fst] )
 
@@ -300,6 +304,7 @@ let compiler (env : compile_env) =
                 (*    asm xs { st with addrs = graph } wf*)
                 (*end*)
         | (DerefPair s) :: xs -> 
+                Printf.printf "deref %s\n" s;
                 if not ((Set.mem !(wf.read_in_func) s) && (Set.mem !(wf.cut_in_func) s)) then
                     let get_fst = get_fst s in
                     let (put_fst, st') = put_local { st with stack = (PairFst s) :: st.stack } in
@@ -308,7 +313,7 @@ let compiler (env : compile_env) =
                     let get_addr = get_addr s in
                     let free = [W.Call (to_wasm_imm fn_idxs.free)] in
                     wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
-                    (get_fst @ put_fst @ get_snd @ put_snd @ get_addr @ free) @ asm xs st wf
+                    (get_fst @ put_fst @ get_snd @ put_snd @ get_addr @ free) @ asm xs st'' wf
                 else
                     (* already in locals *)
                     asm xs st wf
@@ -342,7 +347,7 @@ let compiler (env : compile_env) =
                         let (i2, st') = put_local { st with stack } in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
                         i1 :: i2 @ asm xs st' wf
-                 | a :: b :: rest when Set.mem !(wf.read_in_func) s ->
+                 | _ :: _ :: rest when Set.mem !(wf.read_in_func) s ->
                         let (i1, st') = put_local st in
                         let (i2, st'') = put_local st' in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
@@ -383,20 +388,20 @@ let compiler (env : compile_env) =
                      List.exists ls ~f:(fun (_l, t) -> match t with | One -> false | _ -> true)
                  in
                  let (dealloc_instrs, st) = match st.stack with
-                 | (InjTag t) :: _rest when String.equal s t && (not need_inj) ->
-                         let (i, st') = put_local st in
-                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
-                         Printf.printf "1\n";
-                         (i, st')
                  | (InjTag t) :: (InjData t') :: _rest when String.equal s t && String.equal s t' ->
                          let (i1, st') = put_local st in
                          let (i2, st'') = put_local st' in
                          wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
                          Printf.printf "2\n";
                          (i1 @ i2, st'')
+                 | (InjTag t) :: _rest when String.equal s t && (not need_inj) ->
+                         let (i, st') = put_local st in
+                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                         Printf.printf "1\n";
+                         (i, st')
                  | _ when need_inj ->
                          let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
-                         let has_inj_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_inj s v) in
+                         let has_inj_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_inj s st v) in
                          if not (has_tag_local && has_inj_local) then (
                              Printf.printf "3.1\n";
                              let get_inj = get_inj s in

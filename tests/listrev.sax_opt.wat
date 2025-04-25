@@ -45,12 +45,12 @@
     )
    )
   )
-  (drop
+  (local.set $0
    (i32.load
     (local.get $2)
    )
   )
-  (drop
+  (local.set $3
    (i32.load offset=4
     (local.get $2)
    )
@@ -58,22 +58,15 @@
   (call $1
    (local.get $2)
   )
-  (local.set $0
+  (return_call $4
+   (local.get $3)
    (call $0
     (call $0
-     (i32.load
-      (local.get $2)
-     )
+     (local.get $0)
      (local.get $1)
     )
     (i32.const 1)
    )
-  )
-  (return_call $4
-   (i32.load offset=4
-    (local.get $2)
-   )
-   (local.get $0)
   )
  )
  (func $5 (result i32)
@@ -173,12 +166,12 @@
     )
    )
   )
-  (drop
+  (local.set $0
    (i32.load
     (local.get $2)
    )
   )
-  (drop
+  (local.set $3
    (i32.load offset=4
     (local.get $2)
    )
@@ -186,20 +179,13 @@
   (call $1
    (local.get $2)
   )
-  (local.set $0
-   (call $12
-    (i32.load offset=4
-     (local.get $2)
-    )
-    (local.get $1)
-   )
-  )
   (return_call $0
    (call $0
-    (i32.load
-     (local.get $2)
-    )
     (local.get $0)
+    (call $12
+     (local.get $3)
+     (local.get $1)
+    )
    )
    (i32.const 1)
   )
