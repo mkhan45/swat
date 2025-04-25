@@ -110,6 +110,7 @@ type addr_rel = Pair of (string * string)
               | InjVal of string
 
 type addr_graph = (string, addr_rel list, String.comparator_witness) Map.t
+type asm_state = { stack : stack_val list; locals : stack_val list; addrs : addr_graph }
 
 let is_addr s = function
 | Addr s' when String.equal s s' -> true
@@ -123,19 +124,27 @@ let is_inj s = function
 | InjData s' when String.equal s s' -> true
 | _ -> false
 
-let is_fst (s : string) : stack_val -> bool = function
+let is_fst (s : string) (st : asm_state) : stack_val -> bool = function
 | PairFst s' when String.equal s s' -> true
+| Addr s'' ->
+        Option.value_map ~default:false (Map.find st.addrs s'') ~f:(fun rels -> List.exists rels ~f:(function
+            | PairFst s' when String.equal s s' -> true
+            | _ -> false)
+        )
 | _ -> false
 
-let is_snd (s : string) : stack_val -> bool = function
+let is_snd (s : string) (st : asm_state) : stack_val -> bool = function
 | PairSnd s' when String.equal s s' -> true
+| Addr s'' ->
+        Option.value_map ~default:false (Map.find st.addrs s'') ~f:(fun rels -> List.exists rels ~f:(function
+            | PairSnd s' when String.equal s s' -> true
+            | _ -> false)
+        )
 | _ -> false
 
 let add_rel (graph : addr_graph) ~(addr : string) ~(rel : addr_rel) : addr_graph = match Map.find graph addr with
 | Some ls -> Map.set graph ~key:addr ~data:(rel :: ls)
 | None -> Map.set graph ~key:addr ~data:[rel]
-
-type asm_state = { stack : stack_val list; locals : stack_val list; addrs : addr_graph }
 
 type winsts = W.instr' list
 
@@ -197,7 +206,7 @@ let compiler (env : compile_env) =
         | _ -> (match List.findi st.locals ~f:(fun _i v -> is_addr s v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None ->
-                    (*Printf.printf "looking for %s, locals: %s\n" s (print_stack st.locals);*)
+                    Printf.printf "looking for %s, locals: %s\n" s (print_stack st.locals);
                     let res = Option.bind (Map.find st.addrs s) ~f:(fun rels ->
                         List.find_map rels ~f:(function
                         | InjVal s -> Some (get_inj s)
@@ -225,15 +234,15 @@ let compiler (env : compile_env) =
 
         and get_fst (s : string) : W.instr' list = match st.stack with
         | (PairFst v) :: _ when String.equal v s -> [] (* already on top of stack *)
-        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_fst s v) with
+        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_fst s st v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
                 | None -> (get_addr s) @ [wasm_load_fst] )
 
         and get_snd (s : string) : W.instr' list = match st.stack with
         | (PairSnd v) :: _ when String.equal v s -> [] (* already on top of stack *)
-        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_snd s v) with
+        | _ -> (match List.findi st.locals ~f:(fun _i v -> is_snd s st v) with
                 | Some (i, _) -> [W.LocalGet (to_wasm_imm i)]
-                | None -> (get_addr s) @ [wasm_load_snd] )
+                | None -> (get_addr s) @ [wasm_load_snd])
 
         and get_unit (s : string) : W.instr' list = match st.stack with
         | (Unit v) :: _ when String.equal v s -> [] (* already on top of stack *)
@@ -290,14 +299,18 @@ let compiler (env : compile_env) =
                 (*    asm xs { st with addrs = graph } wf*)
                 (*end*)
         | (DerefPair s) :: xs -> 
-                let get_fst = get_fst s in
-                let (put_fst, st') = put_local { st with stack = (PairFst s) :: st.stack } in
-                let get_snd = get_snd s in
-                let (put_snd, st'') = put_local { st' with stack = (PairSnd s) :: st'.stack } in
-                let get_addr = get_addr s in
-                let free = [W.Call (to_wasm_imm fn_idxs.free)] in
-                wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
-                (get_fst @ put_fst @ get_snd @ put_snd @ get_addr @ free) @ asm xs st wf
+                if not (Set.mem !(wf.read_in_func) s) then
+                    let get_fst = get_fst s in
+                    let (put_fst, st') = put_local { st with stack = (PairFst s) :: st.stack } in
+                    let get_snd = get_snd s in
+                    let (put_snd, st'') = put_local { st' with stack = (PairSnd s) :: st'.stack } in
+                    let get_addr = get_addr s in
+                    let free = [W.Call (to_wasm_imm fn_idxs.free)] in
+                    wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
+                    (get_fst @ put_fst @ get_snd @ put_snd @ get_addr @ free) @ asm xs st wf
+                else
+                    (* already in locals *)
+                    asm xs st wf
         | (GetUnit s) :: xs ->
                 (match get_unit s with
                                 | [] -> asm xs st wf (* already on stack *)
@@ -490,7 +503,7 @@ let compiler (env : compile_env) =
                       | _ -> raise TypeError)
             | Times (lt, rt) -> (match cmd with
                                  | S.Write (v, S.PairPat (l, r)) when String.equal dest_var v ->
-                                         ([GetAddr l; GetAddr r], wasm_func)
+                                         ([AliasPair (v, (l, r)); GetAddr l; GetAddr r], wasm_func)
                                  | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
                                  | _ -> raise TypeError)
             | Plus ls -> (match cmd with
