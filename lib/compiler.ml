@@ -277,7 +277,9 @@ let compiler (env : compile_env) =
         | (PushUnit s) :: xs -> (W.Const (to_wasm_int 0 |> to_region)) :: asm xs { st with stack = (Unit s) :: st.stack } wf
         | (PushTag (i, s)) :: xs -> (W.Const (to_wasm_int i |> to_region)) :: asm xs { st with stack = (InjTag s) :: st.stack } wf
         | (PushInt (i, s)) :: xs -> (W.Const (to_wasm_int i |> to_region)) :: asm xs { st with stack = (Addr s) :: st.stack } wf
-        | (Move (src, dst)) :: xs -> raise Todo
+        | (Move (src, dst)) :: xs -> 
+                (match st.stack with
+                 | Addr s :: rest when String.equal src s -> asm xs { st with stack = (Addr dst) :: rest } wf)
         | (AliasInj (src, dst)) :: xs ->
                 let src_addr_rel = Inj dst in
                 let dst_addr_rel = InjVal src in
@@ -511,7 +513,7 @@ let compiler (env : compile_env) =
             | Times (lt, rt) -> (match cmd with
                                  | S.Write (v, S.PairPat (l, r)) when String.equal dest_var v ->
                                          ([GetAddr l; GetAddr r; AliasPair (v, (l, r))], wasm_func)
-                                 | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
+                                 | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func)
                                  | _ -> raise TypeError)
             | Plus ls -> (match cmd with
                           | S.Write (v, S.InjPat (l, v')) when String.equal dest_var v && List.exists ls ~f:(fun (l', _) -> String.equal l l') ->
@@ -520,7 +522,7 @@ let compiler (env : compile_env) =
                                 (match fix tag_tp with
                                  | One -> ([GetUnit v'; push_idx], wasm_func)
                                  |_ -> ([GetAddr v'; push_idx], wasm_func))
-                          | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
+                          | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func)
                           | _ -> raise TypeError)
             | Arrow (itp, otp) -> (match cmd with
                                | S.WriteCont (v, [(S.PairPat (i, o), body)]) ->
@@ -528,9 +530,9 @@ let compiler (env : compile_env) =
                                           2. get captures (don't bother reading yet cause it's a pain)
                                           3. put ref on stack *)
                                        raise Todo
-                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func))
+                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func))
             | TpName "int" -> (match cmd with
-                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r], wasm_func)
+                               | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func)
                                | _ -> raise TypeError)
             | _ -> raise Todo)
     in
