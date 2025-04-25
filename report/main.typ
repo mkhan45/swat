@@ -1,3 +1,5 @@
+#import "@preview/curryst:0.5.1": rule, prooftree
+
 #set page(paper: "a4", numbering: "1")
 
 #align(center)[
@@ -87,7 +89,7 @@ The only changes to sax are the built-in `int` type and a few built-in metavaria
       a sum tag with a unit injection. It makes the most sense when used with
       a type like `+{ 'false : 1, 'true : 1 }`, but is not checked.
 
-@sum_tailrec shows a proc that writes the sum of the first `n` integers (and `acc`) to `d`.
+@sum_tailrec shows a simple example of using integers in Sax.
 #figure(
 ```
 proc sum_tailrec (d : int) (n : int) (acc : int) =
@@ -110,7 +112,7 @@ kind: "example",
 supplement: "Example"
 ) <sum_tailrec>
 
-== Compilation Stages
+== Compilation Stages and Execution
 
 The compiler and runtime have several components. First, the compiler
 does a simple pass over the Sax, generating a simple stack-based sequential IR
@@ -119,6 +121,22 @@ to generate WASM instructions. Finally, the compiler expects the WASM module to 
 `wasm-opt`. It should not be strictly necessary, but there seem to be differences in how Wasmtime 
 and `wasm-opt` validate modules, so output directly from the compiler often does not run in Wasmtime 
 without using `wasm-opt` first.
+
+Unlike the Sax compiler from class, this compiler requires a `main` proc, with a destination
+of any type. The runner will find the main proc and print its output.
+
+== Limitations
+
+There are some limitations driven by time constraints, but they should be fixable without
+modifying the whole approach.
+
+- The main proc's type must be a typename
+    - because of how printing works, as described below
+- Subtyping probably has bugs
+    - the compiler assumes that all instances of a type have the same layout,
+      but does not enforce this on downcasts
+- Memory does not grow
+    - the allocator does not ever grow the memory, so it is limited to one WASM page of 64 KiB.
 
 = Implementation
 
@@ -138,12 +156,39 @@ Possible stack values are as follow:
 - `GcRef s`: a GC'd reference bound to variable `s`
 - `InjTag s`: the tag of plus-type variable `s`
 - `InjData s`: the injection of plus-type variable `s`
-- `PairFst s`: the pi1 of pair-type variable `s`
-- `PairSnd s`: the injection of pair-type variable `s`
+- `PairFst s`: the $pi_1$ of pair-type variable `s`
+- `PairSnd s`: the $pi_2$ of pair-type variable `s`
 - `Unit s`: a unit bound to variable `s`
     - These never actually materialize in WASM, and are instead used to pad with zero consts when needed
 - `Int s`: an integer bound to variable `s`
     - Integers are passed by value
+
+The basic translation judgement is:
+
+$ S_I ⊢ [| c |] = (W ; S_O) $
+
+meaning that Sax command $c$ yields a list of WASM instructions $W$ and a stack representation $S_O$. Our rules will be used pretty
+informally, and leave out some info about state.
+
+== Allocation and Value Layout
+
+The layout of values is the same on the stack and heap. Cells are always represented as two `i32`s.
+They may be a pair of primitives, or a primitive followed by a tag, where the primitives could represent
+an address, unit, or integer.
+
+Since all cells are the same size, our allocator is very simple. We keep an implicit freelist, where
+the first value of a freed cell is the offset to the next cell. There are two functions:
+- `alloc(v1: i32, v2: i32)` writes `v1` and `v2` to the cell on top of the freelist, bumps the 
+  freelist pointer by the offset previously written to the cell, and returns the address allocated.
+- `free(addr: i32)` writes the current freelist head to the front of the cell, and sets the new freelist
+   pointer to `addr`.
+
+I made some strange choices in this design. First, I opted to start the freelist with every allocated
+cell by writing an offset of 8 to every cell on initialization. This saves storing an additional pointer
+to space that has yet to be allocated or freed, but is probably slower when memory is resized. Additionally,
+I wrote the allocator in Rust, embedding it into the runtime, instead of using WASM's built-in memory instructions.
+This was just done to save myself from writing WASM by hand. It makes the generated code less portable, but
+is likely a little bit faster, since the Rust code is not subject to the same safety checks that WASM would have.
 
 == Cuts and Locals
 
@@ -155,13 +200,83 @@ The binding created by cut should be randomly accessible by the second command, 
 a local for each cut in case it is not on top of the stack when needed. This creates a lot of churn
 and local rewriting but `wasm-opt` handles it.
 
-== Allocation
+If the top of the stack after the first command is already an address, our translation just creates a local for it.
+If it is a decomposed cell of an injection tag and value or pair components, we allocate them and then push
+the address to our locals.
 
-== Tail Calls
+$
+    #prooftree(rule(
+        name: [$"Cut"_"addr"$],
+        [$S ⊢ [| bold("cut") (x : T) P(x) Q(x) |] = W_P :: bold("local.set ")n :: W_Q ; S_Q $],
+        [$S ⊢ [| P |] = W_P ; "Addr x" :: S_P $],
+        [$S_P ⊢ [| Q |] = W_Q ; S_Q$]
+    ))
+$
+$
+    #prooftree(rule(
+        name: [$"Cut"_"pair"$],
+        [$S ⊢ [| bold("cut") (x : T) P(x) Q(x) |] = W_P :: bold("call") "alloc" :: bold("local.set ")n :: W_Q ; S_Q $],
+        [$S ⊢ [| P |] = W_P ; ⋄ :: ⋄ :: S_P $],
+        [$S_P ⊢ [| Q |] = W_Q ; S_Q$]
+    ))
+$
+
+Note that $"Cut"_"pair"$ applies to both pairs and injections, or even pairs of addresses where the top
+address is not the destination.
+
+== Read
+
+Read commands dereference and free an address, put its components into locals, and then build a switch
+if there are multiple cases.
+
+== Write
+
+Write commands move something onto the top of the stack.
+
+#lorem(60)
+
+== Calls and Tail Calls
+
+The call translation is straightforward. ...
+
+Sax's only iteration construct is recursion. To avoid stack-overflows, we need to properly tail
+recurse on tail-recursive Sax functions. This is straightforward using WASM's tail call proposal,
+which has been merged and is supported by most runtimes. However, I found that it is still a bit
+slow in Wasmtime.
+
+To detect when a tall is a tail-call, we just check if the destination of a call is the destination
+of the whole function. Then, it suffices to replace the WASM `call` instruction with `return_call`.
+
+== Id
+
+Id is very simple. We just need to ensure that the required address is on top of the stack; there are two
+cases. If it is already on top, we continue, otherwise we must fetch it from our locals.
 
 == Printing
 
+Printing is a little complicated. Since tags are indexed by type, we need the full type of an object
+to print it. It would be possible to generate a print function for each type, but I instead opted
+to write a single print function in Rust which accepts the type index as a parameter. To do so,
+we must serialize every type def so that it is accessible to the runtime. The compiler uses
+yojson to serialize the type defs to JSON, and then exports it to the runtime using WASM's
+data segments. This undoubtedly makes printing pretty slow.
+
 == Optimizations
+
+We implement a few optimizations, mostly aimed at minimizing allocations.
+
+=== Cut/Read
+
+If the variable instantiated by a cut is read in the same function, we skip allocating it.
+Instead, we put its components in locals. This modifies the translation rules for Cut and Read.
+
+=== Cut/Id
+
+The simple Cut/Id optimization is implicit through our translation of Id. 
+
+=== Vertical Reuse
+
+Though we could easily implement vertical reuse in the compilation, 
 
 == Runtime
 
