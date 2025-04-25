@@ -129,8 +129,9 @@ of any type. The runner will find the main proc and print its output.
 There are some limitations driven by time constraints, but they should be fixable without
 modifying the whole approach.
 
-- The main proc's type must be a typename
-    - because of how printing works, as described below
+- The main proc is limited
+    - Its return type must be a typename because of how printing works, as described below
+    - It does not support Read, because of how the print call is injected
 - Subtyping probably has bugs
     - the compiler assumes that all instances of a type have the same layout,
       but does not enforce this on downcasts
@@ -166,7 +167,8 @@ The basic translation judgement is:
 
 $ S_I ⊢ [| c |] = (W ; S_O) $
 
-meaning that Sax command $c$ yields a list of WASM instructions $W$ and a stack representation $S_O$. Our rules will be used pretty
+meaning that translating Sax command $c$ with abstract stack $S_I$ yields 
+a list of WASM instructions $W$ and a stack representation $S_O$. Our rules will be used pretty
 informally, and leave out some info about state. It leaves skips stack IR step, so there are some slight differences from the code.
 
 == Allocation and Value Layout
@@ -228,6 +230,18 @@ address is not the destination.
 Read commands dereference and free an address, put its components into locals, and then build a switch
 if there are multiple cases.
 
+$
+    #prooftree(rule(
+        name: [$"Read"_"Pair"$],
+        [$S ⊢ [| bold("read") s" "(l, r)" "c |] = "DerefPair"(L_s) :: W_C ; S_C $],
+        [$ S ⊢ [| c |] = W_C; S_C $]))
+$
+$
+    "DerefPair"(L_s) =& bold("local.get") L_s :: bold("memory.load") :: bold("local.set") L_(s_(pi_1)) \
+                    ::& bold("local.get") L_s :: bold("memory.load") "offset="4 :: bold("local.set") L_(s_(pi_2)) \
+                    ::& bold("local.get") L_s :: bold("call") "free" ; S
+$
+
 == Write
 
 Write commands move something onto the top of the stack.
@@ -276,6 +290,11 @@ Id is similar to Write. We just need to ensure that the required address is on t
 cases. If it is already on top, we continue, otherwise we must fetch it from our locals.
 
 == Closures
+
+Closures are garbage collected. There are some considerations to make about adjoint Sax,
+since all closures are currently unrestricted. GC references can not be stored on the heap,
+so linear data cannot reference unrestricted closures, but we can still store heap references
+in the GC. This aligns with adjoint Sax's mode preorder restriction.
 
 #lorem(40)
 

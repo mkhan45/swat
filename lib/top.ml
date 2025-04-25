@@ -41,22 +41,22 @@ let mod_types = [
 
 let mod_imports = [
     W.{ 
-        module_name = Wasm.Utf8.decode "";
+        module_name = Wasm.Utf8.decode "sax";
         item_name = Wasm.Utf8.decode "mem";
         idesc = W.MemoryImport WT.(MemoryT (I32AT, { min = Int64.of_int_exn 1; max = None })) |> Compiler.to_region 
     };
     W.{
-        module_name = Wasm.Utf8.decode "";
+        module_name = Wasm.Utf8.decode "sax";
         item_name = Wasm.Utf8.decode "alloc";
         idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.pair_to_i32) |> Compiler.to_region (* alloc *)
     };
     W.{
-        module_name = Wasm.Utf8.decode "";
+        module_name = Wasm.Utf8.decode "sax";
         item_name = Wasm.Utf8.decode "free";
         idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.i32_to_unit) |> Compiler.to_region (* free *)
     };
     W.{
-        module_name = Wasm.Utf8.decode "";
+        module_name = Wasm.Utf8.decode "sax";
         item_name = Wasm.Utf8.decode "print_val";
         idesc = W.FuncImport (Compiler.to_wasm_imm Compiler.type_idxs.pair_to_unit) |> Compiler.to_region (* print *)
     }
