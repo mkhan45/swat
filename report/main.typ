@@ -35,7 +35,8 @@ WASM is lower-level than Sax and exposes details like stack and local layout, so
 when starting this project I spent a lot of time and effort trying to optimize these.
 However, WASM runtimes often include JIT compilers that make precise stack and local layout
 irrelevant to performance. Additionally, `wasm-opt` is a CLI tool and library that runs
-many optimization passes, including local allocation. So the main focus of this compiler
+many optimization passes, including local allocation. It is used by other compilers
+targeting WASM, including `wasm_of_ocaml`. So the main focus of this compiler
 is on exploiting linear typing's advantages for memory allocation, with an eye on maintaining
 extensibility for supporting adjoint Sax through WASM GC.
 
@@ -356,8 +357,6 @@ to note that it the allocator design replicates this behavior, since the freelis
 a stack and the most recently freed cells are the next allocated ones. Implementing it through
 the compiler would save some freelist manipulation but the performance gain might be quite small.
 
-#lorem(40)
-
 = Evaluation
 
 Holistically, the generated code looks good. The optimizations catch many overaggressive allocations,
@@ -518,8 +517,26 @@ compiler might want to turn some recursive functions into loops.
 
 == Benchmarks
 
-#lorem(60)
+Benchmarks are in the `benches/` folder, run with `hyperfine -N --warmup 10 "./runner/target/release/runner benches/<bench.wat>"`.
+There was some trouble generating huge data structures since the memory does not grow; in these cases I opted to write a loop for
+the main proc. Additionally, since the allocator is written in Rust instead of WASM, it can actually segfault. Finally, I measured
+the startup time of the runtime, including memory intialization and Wasmtime starting, to about 1 ms.
 
+I benchmark against Python and OCaml. I tried to benchmark against `wasm_of_ocaml`, but it uses WASM's exceptions
+proposal which is not yet supported by Wasmtime.
+
+listrev:
+Initializes a linked list ranging from 1 to 10000, and then reverses it. Iterated 500 times.
+
+#figure(
+    table(columns: 4,
+        [],         [swat], [Python], [OCaml],
+        [listrev],  [ 238], [   712], [  125],
+    ),
+    caption: "Benchmark results, in milliseconds",
+    kind: "table",
+    supplement: "Table"
+)
 
 = Related Work
 
