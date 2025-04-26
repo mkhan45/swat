@@ -525,9 +525,6 @@ the startup time of the runtime, including memory intialization and Wasmtime sta
 I benchmark against Python and OCaml. I tried to benchmark against `wasm_of_ocaml`, but it uses WASM's exceptions
 proposal which is not yet supported by Wasmtime.
 
-listrev:
-Initializes a linked list ranging from 1 to 10000, and then reverses it. Iterated 500 times.
-
 #figure(
     table(columns: 4,
         [],         [swat], [Python], [OCaml],
@@ -538,9 +535,33 @@ Initializes a linked list ranging from 1 to 10000, and then reverses it. Iterate
     supplement: "Table"
 )
 
+#figure(
+    table(columns: 2,
+        [Benchmark Name], [Description],
+        [listrev], [Initializes a linked list ranging from 1 to 10000, and then reverses it. Iterated 500 times.],
+    ),
+    caption: "Benchmark descriptions",
+    kind: "table",
+    supplement: "Table"
+)
+
 = Related Work
 
-#lorem(240)
+First, @Sax introduces Sax, which we compile a fragment of.
+
+There is quite a lot of related work on compiling functional languages
+with minimal allocations. Most directly, @LinMemReuse examines reusing allocations in Sax. 
+I am confused about the replacement of Read with Match, Read yields the possible component addresses of a
+cell, so we can free just that cell without following pointers with
+the expectation that its components will be freed later. @Snax examines calculating
+the layout of values using subformulas, which is somewhat related to how
+we track cell components stored in locals. Additionally, @Fp2 demonstrates in-place
+functional programming, although our reuse strategy is more similar to @Perceus
+in that reuse occurs through temporally close de/allocation.
+
+There is less work specifically on compiling functional or substructural languages to
+WASM. OCaml's WASM compiler, @WasmOfOcaml, likely supports some optimizations around
+Jane Street's stack and local modes @OxidizingOcaml, but I could not find documentation.
 
 = Conclusion
 
@@ -595,3 +616,6 @@ The allocator could be rewritten either in WASM or using the API of a different 
 Printing could be done through WASI, or again using a different runtime API. The most
 compelling runtime to support would be browsers; it should be fairly simple to rewrite
 the allocator and printing in JavaScript using Web APIs.
+
+#pagebreak()
+#bibliography("main.bib")
