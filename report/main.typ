@@ -342,12 +342,6 @@ to note that it the allocator design replicates this behavior, since the freelis
 a stack and the most recently freed cells are the next allocated ones. Implementing it through
 the compiler would save some freelist manipulation but the performance gain might be quite small.
 
-=== Future Work: Lazily allocating function returns
-
-Currently, cuts within a function are not allocated if they are Read within the function. It might
-make sense to let all functions return without allocating first, so the caller can decide not to
-allocate if the return is Read.
-
 #lorem(40)
 
 = Evaluation
@@ -516,3 +510,37 @@ for a compact cell representation and inserted `free` calls. It uses a few optim
 to minimize allocations and the GC for unrestricted types. It also supports WASM's i32 type.
 
 == Future Work
+
+Aside from fixing the limitations described in the introduction, there are quite a few ways to extend the compiler 
+by either supporting more Sax features or adding further optimizations.
+
+=== Lazy Records
+
+I did not have time to implement lazy records, but they should be similar to closures.
+
+=== Lazily allocating function returns
+
+Currently, cuts within a function are not allocated if they are Read within the function. It might
+make sense to let all functions return without allocating first, so the caller can decide not to
+allocate if the return is Read.
+
+=== Adjoint Types
+
+Adjoint types should fit neatly into the existing framework. Nonlinear addresses would go on
+the GC, similarly to closures. One complication is that we cannot allocate linear closures
+or records with the current allocator that only supports one chunk size. Additionally,
+we cannot store GC references on the heap, so we would not be able to store linear values
+which refer to linear closures. However, this could be solved by updating the allocator
+to support multiple chunk sizes.
+
+=== Inlining
+
+`wasm-opt` actually inlines some functions, but currently all parameters and returns
+must be allocated. Lazily allocating returns could help, but inlining smaller procedures
+along with the unboxed cut/read optimization might reduce allocations further.
+
+=== Transforming tail-calls to loops
+
+WASM's `return-call` instruction may be slower than `loop` in runtimes other than Wasmtime.
+It should not be too difficult to transform them directly to WASM loops, and would provide
+a significant speedup for tail recursisve functions.
