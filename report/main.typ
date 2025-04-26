@@ -54,9 +54,24 @@ instruction sets like x86 or Java bytecode, with the major difference that all i
 structured. It is primarily a stack VM; instructions operate on some combination of
 bytecode immediates and stack operands. There are no stack manipulation instructions.
 Instead, there is a per-function set of local values which can be accessed through static
-indices, emulating registers.
+indices, emulating registers. Function arguments are passed as locals
 
-WASM also supports both a manually managed heap and a garbage collector.
+WASM also supports both a manually managed heap and a garbage collector. For adjoint Sax,
+we would like to use the heap for linear values, and the GC for others.
+
+The relevant WASM instructions are:
+- `i32.const $n`
+    - pushes the i32 immediate $n$ to the stack
+- `local.get $n`
+    - pushes the local at index $n$ to the stack
+- `local.set $n`
+    - pops the stack, and sets local $n$ to the popped value
+- `i32.load offset=$n`
+    - pops an address $a$ from the stack, and loads address $a + n$
+    - if the offset is omitted, it default to $0$.
+- `call $f`
+    - calls the function $f$, popping all its arguments and
+      pushing its result(s).
 
 == WASM Runtimes
 
@@ -237,8 +252,8 @@ $
         [$ S ⊢ [| c |] = W_C; S_C $]))
 $
 $
-    "DerefPair"(L_s) =& bold("local.get") L_s :: bold("memory.load") :: bold("local.set") L_(s_(pi_1)) \
-                    ::& bold("local.get") L_s :: bold("memory.load") "offset="4 :: bold("local.set") L_(s_(pi_2)) \
+    "DerefPair"(L_s) =& bold("local.get") L_s :: bold("i32.load") :: bold("local.set") L_(s_(pi_1)) \
+                    ::& bold("local.get") L_s :: bold("i32.load") "offset="4 :: bold("local.set") L_(s_(pi_2)) \
                     ::& bold("local.get") L_s :: bold("call") "free" ; S
 $
 
@@ -318,7 +333,7 @@ Instead, we put its components in locals. This modifies the translation rules fo
 
 === Cut/Id
 
-The simple Cut/Id optimization is implicit through our translation of Id. 
+The simple Cut/Id optimization is implicit through our translation of Id.
 
 === Vertical Reuse
 
@@ -340,7 +355,112 @@ allocate if the return is Read.
 Holistically, the generated code looks good. The optimizations catch many overaggressive allocations,
 and `wasm-opt` minimizes stack and local manipulation.
 
-TODO: some examples
+== Cut/Id Example
+
+The following example shows some optimizations in action. $z$ is instantly
+id'd to $x$ after being cut, so it could just be a substitution. This function
+ends up having no allocations except for potentially allocating `'zero(w)`.
+
+#figure(
+```
+proc pred (d : nat) (x : nat) =
+    cut z : nat
+        id z x
+    read z {
+    | 'zero(u) => cut w : 1
+                    id w u
+                  write d 'zero(w)
+    | 'succ(y) => id d y
+    }
+```,
+caption: [The cut/id example from class],
+kind: "example",
+supplement: "Example"
+) <cut_id>
+
+#figure(
+```
+  (func $pred (param i32) (result i32)
+    (local i32 i32 i32 i32)
+    (local.get $x)
+    (local.set $z) ;; duplicate locals, because of id z x
+    (local.get $z) ;; removed by `wasm-opt`
+
+    ;; reads z's components into locals, and then frees it
+    (i32.load 0) ;; read z
+    (local.set $z_inj)
+    (local.get $z)
+    (i32.load 0 offset=4)
+    (local.set $z_tag)
+    (local.get $z)
+    (call $free)
+
+    ;; switch over z's tag
+    (block
+      (block (block (i32.const 0) (local.get $z_tag) (br_table 0 1 0)) (i32.const 0) (i32.const 0) (return_call alloc))
+      (local.get 2)
+      (return)
+    )
+  )
+```,
+caption: [Compiler output for pred, before `wasm-opt`],
+kind: "example",
+supplement: "Example"
+)
+
+== Listrev Example
+
+#figure(
+```
+proc reverse (d : list) (l : list) (acc : list) =
+    read l {
+    | 'nil(u) => 
+        read u ()
+            id d acc
+    | 'cons(ls) => 
+        read ls (hd, tl)
+            cut new : list
+                cut new_p : bin * list
+                    write new_p (hd, acc)
+                write new 'cons(new_p)
+            call reverse d tl new
+    }
+```,
+caption: [`proc reverse` reverses a list tail-recursively],
+kind: "example",
+supplement: "Example"
+)
+
+#figure(
+```
+ (func $reverse (param $l i32) (param $acc i32) (result i32)
+  (local $2 $3 i32)
+  (local.set $l_inj (i32.load (local.get $l)))
+  (local.set $l_tag (i32.load offset=4 (local.get $0))
+  )
+  (call $free (local.get $l))
+  ;; wasm_opt transforms a switch (`br_table`) over two cases into an `if`
+  (if
+   (i32.ne (local.get $l_tag) (i32.const 1))
+   (then (return (local.get $acc))))
+  ;; recycled the local for `l` for `hd`
+  (local.set $l (i32.load (local.get $l_inj))) ;; read `ls`,
+  ;; recycled to local for `l_inj` for `tl`
+  (local.set $l_tag (i32.load offset=4 (local.get $l_inj)))
+  (call free (local.get $l_inj))
+  (return_call $reverse
+   (local.get $l_tag) ;; tl
+   (call alloc
+    (call alloc (local.get $l) (local.get $l_tag)) ;; allocating (hd, acc)
+    (i32.const 1) ;; 'cons tag
+   ) ;; new
+  )
+ )
+```,
+caption: [Compiled output for `reverse`, after `wasm-opt`],
+kind: "example",
+supplement: "Example"
+)
 
 == Benchmarks
 
@@ -391,6 +511,8 @@ compiler might want to turn some recursive functions into loops.
 
 = Conclusion
 
-#lorem(120)
+We have a compiler from a Sax variant to WASM, which takes advantage of linear types
+for a compact cell representation and inserted `free` calls. It uses a few optimizations
+to minimize allocations and the GC for unrestricted types. It also supports WASM's i32 type.
 
 == Future Work
