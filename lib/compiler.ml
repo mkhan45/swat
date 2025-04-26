@@ -28,7 +28,8 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type compile_env = { type_names : type_name_map; type_ls : string list; procs : proc_map; proc_ls : string list }
+type clo_func = (S.parm * int * S.cmd) (* dest, nargs, body *)
+type compile_env = { type_names : type_name_map; type_ls : string list; procs : proc_map; proc_ls : string list; clo_funcs : (clo_func list) ref }
 
 type type_idx_map = {
     unit_fn : int;
@@ -306,7 +307,6 @@ let compiler (env : compile_env) =
                 (*    asm xs { st with addrs = graph } wf*)
                 (*end*)
         | (DerefPair s) :: xs -> 
-                Printf.printf "deref %s\n" s;
                 if not ((Set.mem !(wf.read_in_func) s) && (Set.mem !(wf.cut_in_func) s)) then
                     let get_fst = get_fst s in
                     let (put_fst, st') = put_local { st with stack = (PairFst s) :: st.stack } in
@@ -371,10 +371,6 @@ let compiler (env : compile_env) =
                     let popn = List.length proc_parms in
                     let rest = List.drop st.stack popn in
                     (Addr d) :: rest
-                    (*(match (fix proc_dest_tp) with*)
-                    (* | One -> (Unit d) :: rest*)
-                    (* | Times (_, _) -> (PairSnd d) :: (PairFst d) :: rest*)
-                    (* | Plus _ -> (InjTag d) :: (InjData d) :: rest)*)
                 in
                 begin if (String.equal d wf.ret_dest) && not (String.equal "main" wf.name) then
                     if List.length xs > 0 then raise TypeError else
@@ -394,18 +390,15 @@ let compiler (env : compile_env) =
                          let (i1, st') = put_local st in
                          let (i2, st'') = put_local st' in
                          wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
-                         Printf.printf "2\n";
                          (i1 @ i2, st'')
                  | (InjTag t) :: _rest when String.equal s t && (not need_inj) ->
                          let (i, st') = put_local st in
                          wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
-                         Printf.printf "1\n";
                          (i, st')
                  | _ when need_inj ->
                          let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
                          let has_inj_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_inj s st v) in
                          if not (has_tag_local && has_inj_local) then (
-                             Printf.printf "3.1\n";
                              let get_inj = get_inj s in
                              let (put_inj, st') = put_local { st with stack = (InjData s) :: st.stack } in
                              let get_tag = get_tag s in
@@ -416,11 +409,9 @@ let compiler (env : compile_env) =
                              (get_inj @ put_inj @ get_tag @ put_tag @ get_addr @ free, st'')
                              (*(get_inj @ put_inj @ get_tag @ put_tag, st'')*)
                          ) else (
-                             Printf.printf "3.2\n";
                              ([], st)
                         )
                  | _ -> (* don't need inj *)
-                         Printf.printf "4\n";
                          let has_tag_local = Option.is_some @@ List.find st.locals ~f:(fun v -> is_tag s v) in
                          if not has_tag_local then
                              let get_tag = get_tag s in
@@ -505,6 +496,7 @@ let compiler (env : compile_env) =
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in
+            (* TODO: typecheck *)
             (match dest_tp' with
             | One -> (match cmd with
                       | S.Write (v, S.UnitPat) when String.equal dest_var v -> ([PushUnit v], wasm_func)

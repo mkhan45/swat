@@ -75,7 +75,7 @@ fn main() {
                 *(cur_ptr.add(1)) = v2;
                 *cur += next_free;
 
-                *alloc_alloc.lock().unwrap() += 1;
+                //*alloc_alloc.lock().unwrap() += 1;
                 //println!("Alloc'd {res} with ({v1},{v2})");
                 res
             });
@@ -91,7 +91,7 @@ fn main() {
                 *new_free = offs_to_cur;
                 *cur = offs;
 
-                *alloc_free.lock().unwrap() -= 1;
+                //*alloc_free.lock().unwrap() -= 1;
                 //println!("Free'd {offs} {:?}", fl);
             });
             let print_val = Func::wrap(&mut store, |_tp_idx: i32, _ptr: i32| ());

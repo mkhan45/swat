@@ -1,0 +1,88 @@
+type list = +{'nil : 1, 'cons : int * list}
+type bool = +{ 'false : 1, 'true : 1 }
+type u = 1
+
+proc free_ls (d : 1) (ls : list) =
+    read ls {
+    | 'nil(u) => id d u
+    | 'cons(p) => read p (h, t) 
+                    call free_ls d t
+    }
+
+proc range (d : list) (n : int) =
+    cut tst : bool
+        call _eqz_ tst n
+    read tst {
+    | 'true(u) => write d 'nil(u)
+    | 'false(u) => cut n1 : int
+                       cut one : int
+                           call _const_1 one
+                       call _sub_ n1 n one
+                   cut nxt : list
+                       call range nxt n1
+                   cut p : int * list
+                       write p (n, nxt)
+                   write d 'cons(p)
+    }
+
+proc range_tailrec (d : list) (n : int) (acc : list) =
+    cut tst : bool
+        call _eqz_ tst n
+    read tst {
+    | 'true(u) => id d acc
+    | 'false(u) => cut n1 : int
+                       cut one : int
+                           call _const_1 one
+                       call _sub_ n1 n one
+                   cut p : int * list
+                       write p (n, acc)
+                   cut nxt : list
+                       write nxt 'cons(p)
+                   call range_tailrec d n1 nxt
+    }
+
+proc reverse (d : list) (l : list) (acc : list) =
+    read l {
+    | 'nil(u) => id d acc
+    | 'cons(ls) => 
+        read ls (hd, tl)
+            cut new : list
+                cut new_p : int * list
+                    write new_p (hd, acc)
+                write new 'cons(new_p)
+            call reverse d tl new
+    }
+
+proc main_loop (d : u) (n : int) =
+    cut tst : bool
+        call _eqz_ tst n
+    read tst {
+    | 'true(u) => id d u
+    | 'false(u) => 
+            cut x : int
+                call _const_10000 x
+            cut mt1 : list
+                cut u : 1
+                    write u ()
+                write mt1 'nil(u)
+            cut mt2 : list
+                cut u : 1
+                    write u ()
+                write mt2 'nil(u)
+            cut ls : list
+                call range_tailrec ls x mt1
+            cut rev : list
+                call reverse rev ls mt2
+            cut f : 1
+                call free_ls f rev
+            cut n1 : int
+                cut o : int
+                    call _const_1 o
+                call _sub_ n1 n o
+            call main_loop d n1
+    }
+
+proc main (d : u) =
+    cut n : int
+        call _const_500 n
+    call main_loop d n

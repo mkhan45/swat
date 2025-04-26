@@ -91,7 +91,7 @@ let main () =
     let (main_idx, _) = List.findi_exn proc_ls ~f:(fun i (n, _) -> String.equal n "main") in
     let printer = Wasm_print.mk_printer type_ls in
     (*let tags = Wasm_print.prog_tags env in*)
-    let compile_env = Compiler.{ type_names; type_ls = type_ls |> List.map ~f:fst ; procs; proc_ls = proc_ls |> List.map ~f:fst } in
+    let compile_env = Compiler.{ type_names; type_ls = type_ls |> List.map ~f:fst ; procs; proc_ls = proc_ls |> List.map ~f:fst; clo_funcs = ref [] } in
     let (compile_dest, asm) = Compiler.compiler compile_env in
     let funcs = List.map proc_ls ~f:(fun (n, (d, a, b)) ->
         Printf.printf "proc %s:\n" n;

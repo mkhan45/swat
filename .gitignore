@@ -33,3 +33,6 @@ tests/*.sax.val
 sax
 test.wasm
 tests/*.wat
+
+benches/*.wat
+benches/*.val

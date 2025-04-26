@@ -152,6 +152,7 @@ modifying the whole approach.
       but does not enforce this on downcasts
 - Memory does not grow
     - the allocator does not ever grow the memory, so it is limited to one WASM page of 64 KiB.
+- Shadowing is likely buggy
 
 = Implementation
 
@@ -404,6 +405,13 @@ supplement: "Example"
 
 == Listrev Example
 
+For listrev, we produce an alloc call even for
+reusable cuts, but the allocator ends up writing the new data
+to exactly the cells that were last freed. Since the number
+of frees is equal to the number of allocs, calling `reverse`
+does not actually cause any previously unallocated cells to become
+allocated.
+
 #figure(
 ```
 proc reverse (d : list) (l : list) (acc : list) =
@@ -441,11 +449,11 @@ supplement: "Example"
   (local.set $l (i32.load (local.get $l_inj))) ;; read `ls`,
   ;; recycled to local for `l_inj` for `tl`
   (local.set $l_tag (i32.load offset=4 (local.get $l_inj)))
-  (call free (local.get $l_inj))
+  (call $free (local.get $l_inj))
   (return_call $reverse
    (local.get $l_tag) ;; tl
-   (call alloc
-    (call alloc (local.get $l) (local.get $l_tag)) ;; allocating (hd, acc)
+   (call $alloc
+    (call $alloc (local.get $l) (local.get $l_tag)) ;; allocating (hd, acc)
     (i32.const 1) ;; 'cons tag
    ) ;; new
   )
@@ -455,10 +463,6 @@ caption: [Compiled output for `reverse`, after `wasm-opt`],
 kind: "example",
 supplement: "Example"
 )
-
-== Benchmarks
-
-#lorem(60)
 
 == Iteration and Tail Calls
 
@@ -498,6 +502,11 @@ supplement: "Example"
 
 This is probably runtime dependent, and might be fixed by a Wasmtime update. However, a more robust 
 compiler might want to turn some recursive functions into loops.
+
+== Benchmarks
+
+#lorem(60)
+
 
 = Related Work
 
@@ -544,3 +553,8 @@ along with the unboxed cut/read optimization might reduce allocations further.
 WASM's `return-call` instruction may be slower than `loop` in runtimes other than Wasmtime.
 It should not be too difficult to transform them directly to WASM loops, and would provide
 a significant speedup for tail recursisve functions.
+
+=== Bulk Reading
+
+Reads always read two i32s at once. It might be more efficient to reduce it to a single
+`i64.load` and use bit manipulation to extract the components.
