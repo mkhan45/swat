@@ -82,8 +82,6 @@ let main () =
     let args = parse_cmd_line_args () in
     let env = load [] args in
 (*  let () = print_string (A.Print.pp_env env) in *)
-    let out_channel = open_out ((List.hd_exn args) ^ ".val") in
-    let print_string s = output_string out_channel s in
     let type_ls = int_tp :: (env |> List.filter_map ~f:(function A.TypeDefn (n, d) -> Some (n, d) | _ -> None)) in
     let type_names = type_ls |> Map.of_alist_exn (module String) in
     let proc_ls = env |> List.filter_map ~f:(function A.ProcDefn (n, d, a, b) -> Some (n, (d, a, b)) | _ -> None) in
@@ -142,8 +140,6 @@ let main () =
     in
     let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] main_idx in
     Wasm.Print.module_ (Stdio.Out_channel.create ((List.hd_exn args) ^ ".wat")) 120 (Compiler.to_region wasm_mod);
-    (*let _ = eval_and_print print_string env in*)
-    (*let _ = close_out out_channel in*)
     serve_exit_code Serve_success |> Stdlib.exit
   with
   | Error_msg.Error ->

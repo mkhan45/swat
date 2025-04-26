@@ -183,6 +183,7 @@ let rec print_macro_inst = function
 | PushUnit s -> Printf.printf "PushUnit %s\n" s
 | GetUnit s -> Printf.printf "GetUnit %s\n" s
 | InitAddr s -> Printf.printf "Init %s\n" s
+| InitClo (tp_idx, fn_idx, addr) -> Printf.printf "InitClo tp:%d fn:%d %s\n" tp_idx fn_idx addr
 | AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
 | AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s\n" l r p
 | DerefPair (p) -> Printf.printf "DerefPair %s\n" p
@@ -264,7 +265,7 @@ let compiler (env : compile_env) =
         in
         match ms with
         | [] -> (match st.stack with
-                 | (Addr _ | Int _ | Unit _) :: [] -> if not (String.equal "main" wf.name) then [W.Return] else []
+                 | (Addr _ | Int _ | Unit _ | GcRef _) :: [] -> if not (String.equal "main" wf.name) then [W.Return] else []
                  | _ :: _ :: [] -> if not (String.equal "main" wf.name) then [W.ReturnCall (to_wasm_imm fn_idxs.alloc)] else [W.Call (to_wasm_imm fn_idxs.alloc)]
                  | (InjTag s) :: [] ->
                          (* special case, it's a bool, put a 0 in front of it and alloc *)
@@ -339,6 +340,10 @@ let compiler (env : compile_env) =
                         let (i1, st') = put_local st in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
                         i1 @ asm xs st' wf
+                 | (GcRef s') :: rest when String.equal s s' -> 
+                        let (i1, st') = put_local st in
+                        wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                        i1 @ asm xs st' wf
                  | (Addr s') :: rest when String.equal s s' -> 
                         (* don't need to realloc, but might need local *)
                         let (i1, st') = put_local st in
@@ -358,8 +363,7 @@ let compiler (env : compile_env) =
         | (InitClo (tp_idx, func_idx, s)) :: xs ->
              let push_func_idx = [W.Const (to_wasm_int func_idx |> to_region)] in
              let snew = [W.StructNew ((to_wasm_imm tp_idx), W.Explicit)] in (* i think the Explicit has to do with up/downcasting *)
-             let (i1, st') = put_local { st with stack = (GcRef s) :: st.stack } in
-             push_func_idx @ snew @ i1 @ asm xs st' wf
+             push_func_idx @ snew @ asm xs { st with stack = (GcRef s) :: st.stack } wf
         | (Call ("_add_", d, _ps)) :: xs ->
              let _ :: _ :: rest = st.stack in
              (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: rest } wf
@@ -452,7 +456,7 @@ let compiler (env : compile_env) =
                  dealloc_instrs @ [switch]
     in
 
-    let get_captures (cmd : S.cmd) : string list =
+    let rec get_captures (cmd : S.cmd) : string list =
         let bindings (pat : S.pat) = match pat with
         | UnitPat -> []
         | InjPat (_, v) -> [v]
@@ -461,10 +465,14 @@ let compiler (env : compile_env) =
         match cmd with
         | Id (_, r) -> [r]
         | Write (_, p) -> bindings p
-        | WriteCont (_, cs) -> raise Todo
-        | Read (v, cs) -> v :: raise Todo
+        | WriteCont (_, cs) -> List.concat_map cs ~f:(fun (p, b) -> 
+                let bs = bindings p in 
+                get_captures b |> List.filter ~f:(fun c -> not @@ List.exists bs ~f:(String.equal c)))
+        | Read (v, cs) -> v :: List.concat_map cs ~f:(fun (p, b) ->
+                let bs = bindings p in 
+                get_captures b |> List.filter ~f:(fun c -> not @@ List.exists bs ~f:(String.equal c)))
         | Call (_, _, args) -> args
-        | Cut (v, _, l, r) -> raise Todo
+        | Cut (v, _, l, r) -> get_captures l @ (get_captures r |> List.filter ~f:(fun c -> not (String.equal c v)))
 
     in
 
@@ -549,7 +557,7 @@ let compiler (env : compile_env) =
                                        env.clo_funcs := !(env.clo_funcs) @ [clo];
                                        let captures = get_captures body in
                                        let gets = List.map captures ~f:(fun c -> GetAddr c) in
-                                       let init = [InitClo (struct_tp_idx, fn_idx, v)] in
+                                       let init = [InitClo (struct_tp_idx, fn_idx + fn_idxs.print_val + List.length (env.proc_ls) + 2, v)] in
                                        (init, wasm_func)
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func))
             | TpName "int" -> (match cmd with
