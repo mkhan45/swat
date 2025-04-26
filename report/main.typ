@@ -2,6 +2,8 @@
 
 #set page(paper: "a4", numbering: "1")
 
+#show smallcaps: set text(font: "Cambria Math")
+
 #align(center)[
                #v(24pt)
                #text(size: 1.25em)[= Compiling Linear Sax to WASM]
@@ -19,8 +21,8 @@ WebAssembly (WASM) is a bytecode instruction set focused on speed, security, and
 It is an appealing compilation target because it can be run quickly and securely
 on many platforms, including embedded devices and web browsers, and is used
 in industry for accelerating web performance or running untrusted code. In this paper,
-I detail the structure and implementation of a Sax to WASM compiler, supporting purely linear
-types and 32-bit integers.
+I detail the structure and implementation of a Sax to WASM compiler, supporting linear
+positive types along with unrestricted closures and 32-bit integers.
 
 #v(8pt)
 
@@ -44,7 +46,7 @@ supporting all structural rules. Units are also unrestricted.
 
 The performance of a compiler targeting WASM largely depends on the source language. Manually memory-managed
 languages like C or Rust are often only 20-40% slower through WASM, while more dynamic languages like OCaml
-or Scala can be 3-8x slower (no sources). Thus, the upper performance bound for linear Sax compiled to WASM 
+or Scala can be 2-8x slower (no sources). The upper performance bound for linear Sax compiled to WASM 
 should be similar to the performance of C compiled to WASM.
 
 == WASM Structure
@@ -141,8 +143,8 @@ of any type. The runner will find the main proc and print its output.
 
 == Limitations
 
-There are some limitations driven by time constraints, but they should be fixable without
-modifying the whole approach.
+There are some limitations driven by time constraints, but they should be easy fixes without
+significantly modifying the approach.
 
 - The main proc is limited
     - Its return type must be a typename because of how printing works, as described below
@@ -153,6 +155,9 @@ modifying the whole approach.
 - Memory does not grow
     - the allocator does not ever grow the memory, so it is limited to one WASM page of 64 KiB.
 - Shadowing is likely buggy
+- Procedures can only have up to two arguments (excluding dest)
+    - because WASM module types must be predefined, we need to generate them after
+      scanning Sax procs
 
 = Implementation
 
@@ -223,7 +228,7 @@ the address to our locals.
 
 $
     #prooftree(rule(
-        name: [$"Cut"_"addr"$],
+        name: smallcaps("Cut-Addr"),
         [$S ⊢ [| bold("cut") (x : T) P(x) Q(x) |] = W_P :: bold("local.set ")n :: W_Q ; S_Q $],
         [$S ⊢ [| P |] = W_P ; "Addr x" :: S_P $],
         [$S_P ⊢ [| Q |] = W_Q ; S_Q$]
@@ -231,14 +236,14 @@ $
 $
 $
     #prooftree(rule(
-        name: [$"Cut"_"pair"$],
+        name: smallcaps("Cut-Pair"),
         [$S ⊢ [| bold("cut") (x : T) P(x) Q(x) |] = W_P :: bold("call") "alloc" :: bold("local.set ")n :: W_Q ; S_Q $],
         [$S ⊢ [| P |] = W_P ; ⋄ :: ⋄ :: S_P $],
         [$S_P ⊢ [| Q |] = W_Q ; S_Q$]
     ))
 $
 
-Note that $"Cut"_"pair"$ applies to both pairs and injections, or even pairs of addresses where the top
+Note that #smallcaps("Cut-Pair") applies to both pairs and injections, or even pairs of addresses where the top
 address is not the destination.
 
 == Read
@@ -248,36 +253,46 @@ if there are multiple cases.
 
 $
     #prooftree(rule(
-        name: [$"Read"_"Pair"$],
+        name: smallcaps("Read-Pair"),
         [$S ⊢ [| bold("read") s" "(l, r)" "c |] = "DerefPair"(L_s) :: W_C ; S_C $],
         [$ S ⊢ [| c |] = W_C; S_C $]))
 $
+
+$
+    #prooftree(rule(
+        name: smallcaps("Read-Plus"),
+        [$S ⊢ [| bold("read") s" "c s |] = "DerefPair"(L_s) :: W_S ; S_S $],
+        [$ "BuildSwitch"(c s) = W_S; S_S $]))
+$
+
 $
     "DerefPair"(L_s) =& bold("local.get") L_s :: bold("i32.load") :: bold("local.set") L_(s_(pi_1)) \
                     ::& bold("local.get") L_s :: bold("i32.load") "offset="4 :: bold("local.set") L_(s_(pi_2)) \
                     ::& bold("local.get") L_s :: bold("call") "free" ; S
 $
 
+BuildSwitch$(c s)$ uses WASM's `br_table` construct to build a switch.
+
 == Write
 
 Write commands move something onto the top of the stack.
 $
     #prooftree(rule(
-        name: [$"Write"_"Unit"$],
+        name: smallcaps("Write-Unit"),
         [$S ⊢ [| bold("write") d" "() |] = bold("i32.const") 0 ; () :: S$],
     ))
 $
 
 $
     #prooftree(rule(
-        name: [$"Write"_"Pair"$],
+        name: smallcaps("Write-Pair"),
         [$S ⊢ [| bold("write") d" "(pi_1,pi_2) |] = bold("local.get") L_(pi_1) :: bold("local.get") L_(pi_2); "PairFst d" :: "PairSnd d" :: S$],
     ))
 $
 
 $
     #prooftree(rule(
-        name: [$"Write"_"Plus"$],
+        name: smallcaps("Write-Plus"),
         [$S ⊢ [| bold("write") d" " \'l(a) |] = bold("local.get") a :: bold("i32.const") T; "InjTag d" :: "InjData d" :: S$],
     ))
 $
@@ -287,7 +302,7 @@ $
 The call translation is straightforward.
 $
     #prooftree(rule(
-        name: [Call],
+        name: smallcaps("Call"),
         [$S ⊢ [| bold("call") p" "d" "a_1 ... a_n |] = bold("local.get") L_(a_1) ... L_(a_n) :: bold("call") p; "Addr d" :: S $],
     ))
 $
@@ -311,8 +326,6 @@ Closures are garbage collected. There are some considerations to make about adjo
 since all closures are currently unrestricted. GC references can not be stored on the heap,
 so linear data cannot reference unrestricted closures, but we can still store heap references
 in the GC. This aligns with adjoint Sax's mode preorder restriction.
-
-#lorem(40)
 
 == Printing
 
@@ -552,9 +565,16 @@ along with the unboxed cut/read optimization might reduce allocations further.
 
 WASM's `return-call` instruction may be slower than `loop` in runtimes other than Wasmtime.
 It should not be too difficult to transform them directly to WASM loops, and would provide
-a significant speedup for tail recursisve functions.
+a significant speedup for tail recursive functions.
 
 === Bulk Reading
 
 Reads always read two i32s at once. It might be more efficient to reduce it to a single
 `i64.load` and use bit manipulation to extract the components.
+
+=== Support for other runtimes
+
+The allocator could be rewritten either in WASM or using the API of a different runtime.
+Printing could be done through WASI, or again using a different runtime API. The most
+compelling runtime to support would be browsers; it should be fairly simple to rewrite
+the allocator and printing in JavaScript using Web APIs.

@@ -28,7 +28,7 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type clo_func = (S.parm * int * S.cmd) (* dest, nargs, body *)
+type clo_func = (S.parm * S.parm * int * S.cmd) (* dest, nargs, body *)
 type compile_env = { type_names : type_name_map; type_ls : string list; procs : proc_map; proc_ls : string list; clo_funcs : (clo_func list) ref }
 
 type type_idx_map = {
@@ -173,6 +173,7 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | PushUnit of string
                 | GetUnit of string
                 | PushInt of (int * string)
+                | InitClo of (int * int * string) (* tp idx, func idx, addr *)
 
 let rec print_macro_inst = function
 | GetAddr s -> Printf.printf "Get %s\n" s
@@ -354,6 +355,11 @@ let compiler (env : compile_env) =
                         let (i2, st'') = put_local st' in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
                         i1 @ i2 @ asm xs st'' wf)
+        | (InitClo (tp_idx, func_idx, s)) :: xs ->
+             let push_func_idx = [W.Const (to_wasm_int func_idx |> to_region)] in
+             let snew = [W.StructNew ((to_wasm_imm tp_idx), W.Explicit)] in (* i think the Explicit has to do with up/downcasting *)
+             let (i1, st') = put_local { st with stack = (GcRef s) :: st.stack } in
+             push_func_idx @ snew @ i1 @ asm xs st' wf
         | (Call ("_add_", d, _ps)) :: xs ->
              let _ :: _ :: rest = st.stack in
              (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: rest } wf
@@ -446,6 +452,22 @@ let compiler (env : compile_env) =
                  dealloc_instrs @ [switch]
     in
 
+    let get_captures (cmd : S.cmd) : string list =
+        let bindings (pat : S.pat) = match pat with
+        | UnitPat -> []
+        | InjPat (_, v) -> [v]
+        | PairPat (l, r) -> [l; r]
+        in
+        match cmd with
+        | Id (_, r) -> [r]
+        | Write (_, p) -> bindings p
+        | WriteCont (_, cs) -> raise Todo
+        | Read (v, cs) -> v :: raise Todo
+        | Call (_, _, args) -> args
+        | Cut (v, _, l, r) -> raise Todo
+
+    in
+
     let rec compile_dest ~(cmd : S.cmd) ~(dest : (string * S.tp)) ~(vars : var_env) (wasm_func : wasm_func_env) : (macro_inst list) * wasm_func_env = 
         match cmd with
         | S.Cut (v, t, l, r) ->
@@ -518,10 +540,17 @@ let compiler (env : compile_env) =
                           | _ -> raise TypeError)
             | Arrow (itp, otp) -> (match cmd with
                                | S.WriteCont (v, [(S.PairPat (i, o), body)]) ->
-                                       (* 1. generate a top level def from body
+                                       (* 1. generate a top level def from body, and struct for args
                                           2. get captures (don't bother reading yet cause it's a pain)
-                                          3. put ref on stack *)
-                                       raise Todo
+                                          4. put ref on stack *)
+                                       let fn_idx = List.length !(env.clo_funcs) in
+                                       let clo = ((o, otp), (i, itp), fn_idx, body) in
+                                       let struct_tp_idx = type_idxs.pair_to_i32 + fn_idx + 1 in
+                                       env.clo_funcs := !(env.clo_funcs) @ [clo];
+                                       let captures = get_captures body in
+                                       let gets = List.map captures ~f:(fun c -> GetAddr c) in
+                                       let init = [InitClo (struct_tp_idx, fn_idx, v)] in
+                                       (init, wasm_func)
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func))
             | TpName "int" -> (match cmd with
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func)
