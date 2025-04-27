@@ -546,7 +546,7 @@ kind: "example",
 supplement: "Example"
 ) <sum_tailrec_rec>
 
-This is probably runtime dependent, and might be fixed by a Wasmtime update. However, a more robust 
+This is pretty disappointing, and might be fixed by a Wasmtime update. However, a more robust 
 compiler might want to turn some recursive functions into loops.
 
 == Benchmarks
@@ -561,12 +561,12 @@ proposal which is not yet supported by Wasmtime. I did not have time to benchmar
 through Wasmtime. Since Python's native list type is a vector instead of a linkedlist, I used a tupled linkedlist representation.
 
 #figure(
-    table(columns: 4,
-        [],         [swat], [Python], [OCaml],
+    table(columns: 5,
+        [],         [swat], [Python], [OCaml], [OCaml (opt)]
 
-        [listrev],  [ 238], [   712], [  125],
-        [ack],      [ 363], [  6900], [  934],
-        [isort],     [ 204], [  492], [  247],
+        [listrev],  [ 238], [   712], [  125], [ 24]
+        [ack],      [ 363], [  6900], [  934], [165]
+        [isort],    [ 204], [   492], [  247], [ 25]
     ),
     caption: "Benchmark results, in milliseconds",
     kind: "table",
@@ -586,12 +586,14 @@ through Wasmtime. Since Python's native list type is a vector instead of a linke
     supplement: "Table"
 )
 
-These benchmarks exceeded my expectations. OCaml compiles directly to native, so it should better
-most of the time. However, for purely numeric benchmarks like `ack`, it is significantly slower, likely
-due to its `i31` int tagging scheme. For list sorting, it seems likely that OCaml's slow comparisons
-slowed it down, but it almost catches up due to its faster general data manipulation.
+These benchmarks are about inline with expectations. Swat performs similarly to OCaml's bytecode compiler,
+but is much faster for `ack`. This is likely due to OCaml's `i31` pointer tagging scheme. However, it is much
+slower than OCaml's optimizing native compiler. After analyzing the generated WASM code for listrev and isort, 
+this is likely due to Wasmtime's slow tail calls. Ack, which gets much less advantage from tail call optimization,
+performs relatively much better.
 
-More benchmarks would be needed for a real picture of how Swat performs.
+More benchmarks would be needed for a real picture of how Swat performs. Converting tail recursive functions to
+loops seems like a high priority optimization.
 
 = Related Work
 
