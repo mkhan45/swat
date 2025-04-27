@@ -29,5 +29,18 @@ proc lambda (d : nat => nat) = write d {
         call add d_1 x o
 }
 
+/*
+proc addn (d : nat => nat) (n : int) = write d {
+    | (x, d_1) => call add d_1 x n
+}
+*/
+
+proc tst (d : nat) =
+    cut f : nat => nat
+        call lambda f
+    cut a : nat
+        call one a
+    read f (a, d)
+
 proc main (d : nat) =
-    call one d
+    call tst d

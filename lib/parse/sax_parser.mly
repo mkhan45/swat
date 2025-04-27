@@ -69,6 +69,10 @@ cmd :
   | READ;
     x = IDENT;
     pat = pat;
+    { Ast.ReadClo(x, pat) }
+  | READ;
+    x = IDENT;
+    pat = pat;
     cmd = cmd;
     { Ast.Read(x, [(pat, cmd)]) }
   | READ;

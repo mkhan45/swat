@@ -30,21 +30,28 @@ let rec load (raw : Ast.env) (filenames : string list) : Ast.env =
   | [] -> raw
 
 let mod_types = [
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([], [])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T; NumT I32T])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([], [NumT I32T])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [NumT I32T])))])); (* pair_to_i32 *)
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([RefT (NoNull, StructHT); NumT I32T], [NumT I32T])))])); (* ref_i32_to_i32 *)
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([], [RefT (NoNull, StructHT)])))])); (* unit_to_ref *)
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [RefT (NoNull, StructHT)])))])); (* i32_to_ref *)
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([], [])))]);
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [])))]);
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T])))]);
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T; NumT I32T])))]);
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([], [NumT I32T])))]);
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [])))]);
+    WT.RecT([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [NumT I32T])))]);
+    WT.RecT ([
+        SubT (Final, [], DefFuncT (FuncT ([RefT (NoNull, VarHT (StatX (Int32.of_int_exn 10))); NumT I32T], [NumT I32T])));
+        SubT (Final, [], DefFuncT (FuncT ([], [RefT (NoNull, VarHT (StatX (Int32.of_int_exn 10)))])));
+        SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [RefT (NoNull, VarHT (StatX (Int32.of_int_exn 10)))])));
+        SubT (Final, [], DefStructT (StructT ([FieldT (Cons, ValStorageT (RefT (NoNull, VarHT (StatX (Int32.of_int_exn 7)))))])));
+    ])
 ] |> List.map ~f:Compiler.to_region
 
 let mk_struct_type (n_i32s : int) =
     (* wtf *)
-    WT.RecT ([SubT (Final, [], DefStructT (StructT (List.range 0 n_i32s |> List.map ~f:(fun _ -> WT.FieldT (Cons, ValStorageT (NumT I32T))))))])
+    WT.RecT ([SubT (NoFinal, [], 
+    WT.DefStructT (StructT (
+        WT.FieldT (Cons, ValStorageT (RefT (NoNull, FuncHT))) 
+        :: (List.range 0 n_i32s |> List.map ~f:(fun _ -> WT.FieldT (Cons, ValStorageT (NumT I32T))))
+    )))])
 
 let mod_imports = [
     W.{ 
@@ -75,13 +82,24 @@ let mk_mod funcs datas main_idx clo_types = W.{
     funcs = funcs |> List.map ~f:Compiler.to_region;
     imports = mod_imports |> List.map ~f:Compiler.to_region;
     exports = [
-        { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm (Compiler.fn_idxs.print_val + 1)) |> Compiler.to_region} |> Compiler.to_region;
-        { name = Wasm.Utf8.decode "main"; edesc = FuncExport (Compiler.to_wasm_imm (main_idx + Compiler.fn_idxs.print_val + 2)) |> Compiler.to_region } |> Compiler.to_region;
+        { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm (Compiler.fn_idxs.invoke_clo + 1)) |> Compiler.to_region} |> Compiler.to_region;
+        { name = Wasm.Utf8.decode "main"; edesc = FuncExport (Compiler.to_wasm_imm (main_idx + Compiler.fn_idxs.invoke_clo + 2)) |> Compiler.to_region } |> Compiler.to_region;
     ];
     datas;
 }
 
 let int_tp = ("int", A.TpName "int")
+
+let invoke_clo_fn =
+    let body =
+        let get_arg = W.LocalGet (Compiler.to_wasm_imm 1) in
+        let get_clos = W.LocalGet (Compiler.to_wasm_imm 0) in
+        (* struct type idx is the closure with 0 captures, which just holds a funcref *)
+        let struct_get = W.StructGet (Compiler.to_wasm_imm (Compiler.type_idxs.i32_to_ref + 1), Compiler.to_wasm_imm 0, None) in
+        let call = W.CallRef (Compiler.to_wasm_imm (Compiler.type_idxs.ref_i32_to_i32)) in
+        [get_arg; get_clos; get_clos; struct_get; call] |> List.map ~f:(Compiler.to_region)
+    in
+    W.{ ftype = Compiler.(to_wasm_imm type_idxs.ref_i32_to_i32); locals = []; body = [(W.Const (Compiler.to_wasm_int 0 |> Compiler.to_region)) |> Compiler.to_region] }
 
 let main () =
   try
@@ -115,7 +133,10 @@ let main () =
         let wasm = asm insts st e in
         let locals =
             let nlocals = !(func_env.nlocals) in
-            List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region))
+            List.(range 0 nlocals |> map ~f:(fun i -> 
+                if List.exists !(func_env.ref_locals) ~f:(Int.equal i)
+                then W.{ ltype = WT.RefT (NoNull, VarHT (StatX (Int32.of_int_exn 10))) } |> Compiler.to_region
+                else W.{ ltype = WT.NumT I32T } |> Compiler.to_region))
         in
 
         let wasm = match n with
@@ -148,13 +169,33 @@ let main () =
     )
     in
     let clos_ls = !(compile_env.clo_funcs) in
-    let clos = List.mapi clos_ls ~f:(fun idx (dest, inp, nargs, body) -> 
-        (* TODO *)
-        "todo")
+    let clos = List.mapi clos_ls ~f:(fun idx (dest, inp, caps, wf, body) -> 
+        let (dest, dest_tp) = dest in
+        let var_env = caps @ [inp] in
+        let st =
+            let locals = Compiler.GcRef "_clo_" :: List.map var_env ~f:(fun (v, _) -> Compiler.Addr v) in
+            let stack = [] in
+            let addrs = Map.of_alist_exn (module String) @@ List.map var_env ~f:(fun (v, _) -> (v, [])) in
+            Compiler.{ stack; locals; addrs }
+        in
+        let struct_idx = Compiler.type_idxs.i32_to_ref + (List.length caps) + 1 in
+        let get_captures = List.concat_mapi caps ~f:(fun i (_c, _ctp) ->
+            Compiler.(
+                [W.LocalGet (to_wasm_imm 0); W.StructGet (to_wasm_imm struct_idx, to_wasm_imm (i+1), None); W.LocalSet (to_wasm_imm (i+2))]
+            )
+        )
+        in
+        let wasm = get_captures @ asm body st wf in
+        let nlocals = !(wf.nlocals) - 2 in (* sub 2 for clo and arg *)
+        let locals = List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region)) in
+        W.{ ftype = Compiler.(to_wasm_imm type_idxs.ref_i32_to_i32); locals; body = wasm |> List.map ~f:Compiler.to_region }
+    )
     in
-    (* add 1 to nargs for the func idx *)
-    let clo_types = List.map clos_ls ~f:(fun (_, _, nargs, _) -> mk_struct_type (nargs + 1) |> Compiler.to_region) in
-    let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] main_idx clo_types in
+    let clo_types =
+        let max_ncaps = List.fold clos_ls ~init:0 ~f:(fun acc (_, _, caps, _, _) -> Int.max acc (List.length caps)) in
+        List.map (List.range ~stop:`inclusive 1 max_ncaps) ~f:(fun n -> mk_struct_type n |> Compiler.to_region) 
+    in
+    let wasm_mod = mk_mod (invoke_clo_fn :: printer.init_fn :: funcs @ clos) [printer.data_segment] main_idx clo_types in
     Wasm.Print.module_ (Stdio.Out_channel.create ((List.hd_exn args) ^ ".wat")) 120 (Compiler.to_region wasm_mod);
     serve_exit_code Serve_success |> Stdlib.exit
   with

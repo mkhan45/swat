@@ -21,6 +21,7 @@
     (* | MarkedPat of pat Mark.marked *)
 
     type cmd = Read of varname * (pat * cmd) list
+             | ReadClo of varname * pat
              | Write of varname * pat
              | WriteCont of varname * (pat * cmd) list
              | Cut of varname * tp * cmd * cmd

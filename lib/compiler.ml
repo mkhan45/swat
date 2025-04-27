@@ -28,7 +28,28 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type clo_func = (S.parm * S.parm * int * S.cmd) (* dest, inp, nargs, body *)
+type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
+                | GetAddrTag of string (* ensures tag of address is top of stack *)
+                | GetFunc of int
+                | GetRef of string
+                | InitAddr of string (* allocates a cell with name *)
+                | AliasInj of (string * string)
+                | AliasPair of (string * (string * string))
+                | DerefPair of string
+                | Move of (string * string) (* moves values between refs *)
+                | Call of (string * string * string list)
+                | InvokeClo of (string * string) (* arg, dest *)
+                | Switch of (string * int * (int * (macro_inst list)) list) (* switches on top of stack *)
+                | PushTag of (int * string)
+                | PushUnit of string
+                | GetUnit of string
+                | PushInt of (int * string)
+                | InitClo of (int * int * int * string) (* tp idx, func idx, ncaps, addr *)
+
+type string_set = (string, String.comparator_witness) Set.t
+
+type wasm_func_env = { read_in_func : string_set ref; cut_in_func : string_set ref; nlocals : int ref; ref_locals : (int list) ref; name : string; ret_dest : string }
+type clo_func = (S.parm * S.parm * (S.parm list) * wasm_func_env * macro_inst list) (* dest, inp, capture args, wf, body *)
 type compile_env = { type_names : type_name_map; type_ls : string list; procs : proc_map; proc_ls : string list; clo_funcs : (clo_func list) ref }
 
 type type_idx_map = {
@@ -59,28 +80,17 @@ let type_idxs = {
 type fn_idx_map = {
     alloc : int;
     free : int;
-    print_val : int
+    print_val : int;
+    invoke_clo : int;
 }
 
 let fn_idxs : fn_idx_map = {
-    alloc = 0; free = 1; print_val = 2
+    alloc = 0; free = 1; print_val = 2; invoke_clo = 3
 }
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t
 
-type wasm_addr = Stack of int
-               | Local of int
-               | Heap of int
-let addr_to_string = function
-    | Stack i -> Printf.sprintf "S %d" i
-    | Local i -> Printf.sprintf "L %d" i
-    | Heap i -> Printf.sprintf "H %d" i
-
-type addr_map = (string, wasm_addr, String.comparator_witness) Map.t
-type string_set = (string, String.comparator_witness) Set.t
-
-type wasm_func_env = { read_in_func : string_set ref; cut_in_func : string_set ref; nlocals : int ref; name : string; ret_dest : string }
-let empty_func_env name ret_dest = { read_in_func = ref @@ Set.empty (module String); cut_in_func = ref @@ Set.empty (module String); nlocals = ref 0; name; ret_dest }
+let empty_func_env name ret_dest = { read_in_func = ref @@ Set.empty (module String); cut_in_func = ref @@ Set.empty (module String); nlocals = ref 0; ref_locals = ref []; name; ret_dest }
 let print_func_env env = ()
     (*let addr_ls = Map.to_alist env.addrs in*)
     (*let addr_s = String.concat ~sep:", " (List.map addr_ls ~f:(fun (s, a) -> s ^ ":" ^ (addr_to_string a))) in*)
@@ -166,30 +176,18 @@ let rec sizeof (t : S.tp) : int = match t with
 | Plus ls -> 1 + (List.fold ls ~init:0 ~f:(fun max_size (_, t) -> Int.max max_size (sizeof t)))
 | TpName _ -> 1
 
-type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
-                | GetAddrTag of string (* ensures tag of address is top of stack *)
-                | InitAddr of string (* allocates a cell with name *)
-                | AliasInj of (string * string)
-                | AliasPair of (string * (string * string))
-                | DerefPair of string
-                | Move of (string * string) (* moves values between refs *)
-                | Call of (string * string * string list)
-                | Switch of (string * int * (int * (macro_inst list)) list) (* switches on top of stack *)
-                | PushTag of (int * string)
-                | PushUnit of string
-                | GetUnit of string
-                | PushInt of (int * string)
-                | InitClo of (int * int * string) (* tp idx, func idx, addr *)
-
 let rec print_macro_inst = function
 | GetAddr s -> Printf.printf "Get %s\n" s
 | GetAddrTag s -> Printf.printf "GetTag %s\n" s
+| GetFunc s -> Printf.printf "GetFunc %d\n" s
+| GetRef s -> Printf.printf "GetRef %s\n" s
 | PushTag (i, s) -> Printf.printf "PushTag %d %s\n" i s
 | PushInt (i, s) -> Printf.printf "PushInt %d %s\n" i s
 | PushUnit s -> Printf.printf "PushUnit %s\n" s
 | GetUnit s -> Printf.printf "GetUnit %s\n" s
 | InitAddr s -> Printf.printf "Init %s\n" s
-| InitClo (tp_idx, fn_idx, addr) -> Printf.printf "InitClo tp:%d fn:%d %s\n" tp_idx fn_idx addr
+| InitClo (tp_idx, fn_idx, nargs, addr) -> Printf.printf "InitClo tp:%d fn:%d %s\n" tp_idx fn_idx addr
+| InvokeClo (arg, dest) -> Printf.printf "InvokeClo(%s), %s\n" arg dest
 | AliasInj (l, r) -> Printf.printf "Alias %s to %s.inj\n" r l
 | AliasPair (p, (l, r)) -> Printf.printf "Alias (%s, %s) to %s\n" l r p
 | DerefPair (p) -> Printf.printf "DerefPair %s\n" p
@@ -338,6 +336,10 @@ let compiler (env : compile_env) =
         | (GetAddrTag s) :: xs -> (match get_tag s with
                                    | [] -> asm xs st wf (* already on stack *)
                                    | is -> is @ asm xs { st with stack = (InjTag s) :: st.stack } wf)
+        | (GetRef s) :: xs ->
+                let (idx, _) = List.findi_exn st.locals ~f:(fun _i v -> match v with | GcRef s' when String.equal s s' -> true | _ -> false) in
+                W.LocalGet (to_wasm_imm idx) :: asm xs { st with stack = (GcRef s) :: st.stack } wf
+        | (GetFunc idx) :: xs -> (W.RefFunc (to_wasm_imm idx)) :: asm xs { st with stack = (GcRef "func") :: st.stack } wf
         | (InitAddr s) :: xs ->
                 (match st.stack with
                  | (Unit _) :: rest -> asm xs st wf
@@ -349,6 +351,7 @@ let compiler (env : compile_env) =
                  | (GcRef s') :: rest when String.equal s s' -> 
                         let (i1, st') = put_local st in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st'.locals);
+                        wf.ref_locals := (!(wf.nlocals) - 1) :: !(wf.ref_locals);
                         i1 @ asm xs st' wf
                  | (Addr s') :: rest when String.equal s s' -> 
                         (* don't need to realloc, but might need local *)
@@ -366,10 +369,10 @@ let compiler (env : compile_env) =
                         let (i2, st'') = put_local st' in
                         wf.nlocals := Int.max !(wf.nlocals) (List.length st''.locals);
                         i1 @ i2 @ asm xs st'' wf)
-        | (InitClo (tp_idx, func_idx, s)) :: xs ->
-             let push_func_idx = [W.Const (to_wasm_int func_idx |> to_region)] in
+        | (InitClo (tp_idx, func_idx, ncaps, s)) :: xs ->
+             let stack = List.drop st.stack (ncaps + 1) in
              let snew = [W.StructNew ((to_wasm_imm tp_idx), W.Explicit)] in (* i think the Explicit has to do with up/downcasting *)
-             push_func_idx @ snew @ asm xs { st with stack = (GcRef s) :: st.stack } wf
+             snew @ asm xs { st with stack = (GcRef s) :: stack } wf
         | (Call ("_add_", d, _ps)) :: xs ->
              let _ :: _ :: rest = st.stack in
              (W.Binary (I32 Add)) :: asm xs { st with stack = (Addr d) :: rest } wf
@@ -386,14 +389,21 @@ let compiler (env : compile_env) =
                 let stack =
                     let popn = List.length proc_parms in
                     let rest = List.drop st.stack popn in
-                    (Addr d) :: rest
+                    match proc_dest_tp with
+                    | Arrow (_, _) -> (GcRef d) :: rest
+                    | _ -> (Addr d) :: rest
                 in
                 begin if (String.equal d wf.ret_dest) && not (String.equal "main" wf.name) then
                     if List.length xs > 0 then raise TypeError else
-                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))]
+                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.invoke_clo))]
                 else
-                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
+                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.invoke_clo))) :: asm xs { st with stack } wf
                 end
+         | (InvokeClo (arg, dst)) :: xs ->
+                 let f1 :: f2 :: a :: rest = st.stack in
+                 let struct_get = W.StructGet (to_wasm_imm (type_idxs.i32_to_ref + 1), to_wasm_imm 0, None) in
+                 let call = W.CallRef (to_wasm_imm type_idxs.ref_i32_to_i32) in
+                 struct_get :: call :: asm xs { st with stack = (Addr dst) :: rest } wf
          | (Switch (s, tp_idx, ls)) :: xs ->
                  (* TODO: cleanup, optimize to bulk load *)
                  let need_inj =
@@ -497,8 +507,10 @@ let compiler (env : compile_env) =
         | S.Call (p, d, ps) ->
               let gets = List.map ps ~f:(fun v -> GetAddr v) in
               (gets @ [Call (p, d, ps)], wasm_func)
+        | S.ReadClo (f, PairPat (a, d)) ->
+              let clo_tp = Map.find_exn vars f |> fix in
+              ([GetRef f; GetAddr a; GetRef f; InvokeClo (a, d)], wasm_func)
         | S.Read (v, bs) ->
-              (* TODO: read both parts instead of just the tag, so that we can instantly free it *)
               wasm_func.read_in_func := Set.add !(wasm_func.read_in_func) v;
               let subj_tp = Map.find_exn vars v |> fix in
               (match subj_tp with
@@ -557,14 +569,22 @@ let compiler (env : compile_env) =
                                        (* 1. generate a top level def from body, and struct for args
                                           2. get captures (don't bother reading yet cause it's a pain)
                                           3. put ref on stack *)
-                                       let fn_idx = List.length !(env.clo_funcs) in
-                                       let clo = ((o, otp), (i, itp), fn_idx, body) in
-                                       let struct_tp_idx = type_idxs.i32_to_ref + fn_idx + 1 in
+                                       let fn_idx = List.length !(env.clo_funcs) + List.length (env.proc_ls) + fn_idxs.invoke_clo + 2 in
+                                       let captures = 
+                                           get_captures body 
+                                           |> List.filter ~f:(fun c -> not (String.equal c i))
+                                           |> List.map ~f:(fun c -> (c, Map.find_exn vars c))
+                                       in
+                                       let ncaptures = List.length captures in 
+                                       let inner_wf = empty_func_env "clo" o in
+                                       let (body, wf) = compile_dest ~cmd:body ~dest:(o, otp) ~vars:(Map.set vars ~key:i ~data:itp) inner_wf in
+                                       let clo = ((o, otp), (i, itp), captures, wf, body) in
                                        env.clo_funcs := !(env.clo_funcs) @ [clo];
-                                       let captures = get_captures body in
-                                       let gets = List.map captures ~f:(fun c -> GetAddr c) in
-                                       let init = [InitClo (struct_tp_idx, List.length captures, v)] in
-                                       (init, wasm_func)
+                                       let struct_tp_idx = type_idxs.i32_to_ref + (List.length captures) + 1 in
+                                       let gets = List.map captures ~f:(fun (c, _) -> GetAddr c) in
+                                       let push_func_idx = GetFunc fn_idx in
+                                       let init = [InitClo (struct_tp_idx, fn_idx, ncaptures, v)] in
+                                       (push_func_idx :: gets @ init, wasm_func)
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func))
             | TpName "int" -> (match cmd with
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func)
