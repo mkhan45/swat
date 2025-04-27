@@ -14,9 +14,10 @@ The compiler dependencies are similar to the starter code, except for the wasm s
 
 OCaml 5.2.0, Dune 3.16, Menhir 3.0, wasm from the submodule (gh:WebAssembly/spec wasm-3.0 branch), and yojson.
 ```
+   git submodule --init
    git submodule update --remote --recursive
    opam pin add wasm ./wasm
-   opam install core dune ocamlformat menhir merlin ppx_jane ppx_deriving ppx_import utop ocaml-lsp-server odoc zarith yojson
+   opam install core dune ocamlformat menhir merlin ppx_jane ppx_deriving ppx_import utop ocaml-lsp-server odoc zarith yojson js_of_ocaml js_of_ocaml-ppx
 ```
 
 ## Building
