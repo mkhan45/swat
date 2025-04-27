@@ -298,7 +298,7 @@ $
 $
     #prooftree(rule(
         name: smallcaps("Write-Plus"),
-        [$S ⊢ [| bold("write") d" " \'l(a) |] = bold("local.get") a :: bold("i32.const") T; "InjTag d" :: "InjData d" :: S$],
+        [$S ⊢ [| bold("write") d" " \'l(a) |] = bold("local.get") L_a :: bold("i32.const") T; "InjTag d" :: "InjData d" :: S$],
     ))
 $
 
@@ -322,8 +322,15 @@ of the whole function. Then, it suffices to replace the WASM `call` instruction 
 
 == Id
 
-Id is similar to Write. We just need to ensure that the required address is on top of the stack; there are two
-cases. If it is already on top, we continue, otherwise we must fetch it from our locals.
+Id is similar to Write. We just need to ensure that the required address is on top of the stack by
+fetching it from locals.
+
+$
+    #prooftree(rule(
+        name: smallcaps("Id"),
+        [$S ⊢ [| bold("Id") d" "s |] = bold("local.get") L_s; "Addr d" :: S $],
+    ))
+$
 
 == Closures
 
