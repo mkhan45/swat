@@ -40,7 +40,8 @@ type type_idx_map = {
     pair_to_unit : int;
     pair_to_i32 : int;
     ref_i32_to_i32 : int; (* lifted closure *)
-    i32_to_ref : int (* func accepting one arg and returning clo *)
+    unit_to_ref : int; (* func returning clo *)
+    i32_to_ref : int; (* func accepting one arg and returning clo *)
 }
 let type_idxs = {
     unit_fn = 0;
@@ -51,7 +52,8 @@ let type_idxs = {
     pair_to_unit = 5;
     pair_to_i32 = 6;
     ref_i32_to_i32 = 7;
-    i32_to_ref = 8;
+    unit_to_ref = 8;
+    i32_to_ref = 9;
 }
 
 type fn_idx_map = {
@@ -561,7 +563,7 @@ let compiler (env : compile_env) =
                                        env.clo_funcs := !(env.clo_funcs) @ [clo];
                                        let captures = get_captures body in
                                        let gets = List.map captures ~f:(fun c -> GetAddr c) in
-                                       let init = [InitClo (struct_tp_idx, fn_idx + fn_idxs.print_val + List.length (env.proc_ls) + 2, v)] in
+                                       let init = [InitClo (struct_tp_idx, List.length captures, v)] in
                                        (init, wasm_func)
                                | S.Id (l, r) when String.equal dest_var l -> ([GetAddr r; Move (r, dest_var)], wasm_func))
             | TpName "int" -> (match cmd with

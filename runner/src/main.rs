@@ -53,6 +53,7 @@ fn main() {
             println!("Running {f}");
             let mut config = Config::new();
             config.cranelift_opt_level(OptLevel::Speed);
+            config.wasm_gc(true);
 
             let engine = Engine::new(&config).unwrap();
 

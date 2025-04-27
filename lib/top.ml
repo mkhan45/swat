@@ -36,9 +36,15 @@ let mod_types = [
     WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T; NumT I32T])))]));
     WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([], [NumT I32T])))]));
     WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [NumT I32T])))]));
-    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T])))]));
+    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [NumT I32T])))])); (* pair_to_i32 *)
+    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([RefT (NoNull, StructHT); NumT I32T], [NumT I32T])))])); (* ref_i32_to_i32 *)
+    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([], [RefT (NoNull, StructHT)])))])); (* unit_to_ref *)
+    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [RefT (NoNull, StructHT)])))])); (* i32_to_ref *)
 ] |> List.map ~f:Compiler.to_region
+
+let mk_struct_type (n_i32s : int) =
+    (* wtf *)
+    WT.RecT ([SubT (Final, [], DefStructT (StructT (List.range 0 n_i32s |> List.map ~f:(fun _ -> WT.FieldT (Cons, ValStorageT (NumT I32T))))))])
 
 let mod_imports = [
     W.{ 
@@ -63,9 +69,9 @@ let mod_imports = [
     }
 ]
 
-let mk_mod funcs datas main_idx = W.{
+let mk_mod funcs datas main_idx clo_types = W.{
     W.empty_module with 
-    types = mod_types; 
+    types = mod_types @ clo_types; 
     funcs = funcs |> List.map ~f:Compiler.to_region;
     imports = mod_imports |> List.map ~f:Compiler.to_region;
     exports = [
@@ -95,7 +101,7 @@ let main () =
     let funcs = List.map proc_ls ~f:(fun (n, (d, a, b)) ->
         Printf.printf "proc %s:\n" n;
         let vars = Map.of_alist_exn (module String) a in
-        let (ret_dest, _) = d in
+        let (ret_dest, ret_tp) = d in
         let func_env = Compiler.empty_func_env n ret_dest in
         let (insts, e) = compile_dest ~cmd:b ~dest:d ~vars func_env in
         List.iter insts ~f:Compiler.print_macro_inst;
@@ -127,10 +133,12 @@ let main () =
         in
 
         (* TODO: generate types *)
-        let ftype = match List.length a with
-        | 0 -> Compiler.type_idxs.unit_to_i32
-        | 1 -> Compiler.type_idxs.i32_to_i32
-        | 2 -> Compiler.type_idxs.pair_to_i32
+        let ftype = match (List.length a, ret_tp) with
+        | (0, A.Arrow (_, _)) -> Compiler.type_idxs.unit_to_ref
+        | (0, _) -> Compiler.type_idxs.unit_to_i32
+        | (1, A.Arrow (_, _)) -> Compiler.type_idxs.i32_to_ref
+        | (1, _) -> Compiler.type_idxs.i32_to_i32
+        | (2, _) -> Compiler.type_idxs.pair_to_i32
         in
         W.{ ftype = Compiler.to_wasm_imm ftype; locals; body = wasm |> List.map ~f:Compiler.to_region }
         (*Printf.printf "WASM:\n";*)
@@ -140,11 +148,13 @@ let main () =
     )
     in
     let clos_ls = !(compile_env.clo_funcs) in
-    let clos = List.mapi clos_ls ~f:(fun idx (dest, inp, _idx, body) -> 
-        (* *)
-        raise Todo)
+    let clos = List.mapi clos_ls ~f:(fun idx (dest, inp, nargs, body) -> 
+        (* TODO *)
+        "todo")
     in
-    let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] main_idx in
+    (* add 1 to nargs for the func idx *)
+    let clo_types = List.map clos_ls ~f:(fun (_, _, nargs, _) -> mk_struct_type (nargs + 1) |> Compiler.to_region) in
+    let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] main_idx clo_types in
     Wasm.Print.module_ (Stdio.Out_channel.create ((List.hd_exn args) ^ ".wat")) 120 (Compiler.to_region wasm_mod);
     serve_exit_code Serve_success |> Stdlib.exit
   with
