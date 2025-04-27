@@ -617,7 +617,8 @@ Jane Street's stack and local modes @OxidizingOcaml, but I could not find docume
 
 We have a compiler from a Sax variant to WASM, which takes advantage of linear types
 for a compact cell representation and inserted `free` calls. It uses a few optimizations
-to minimize allocations and the GC for unrestricted types. It also supports WASM's i32 type.
+to minimize allocations, and supports WASM's i32 type. It shows a proof of concept for
+supporting closures and unrestricted types using WASM's GC.
 
 == Future Work
 
