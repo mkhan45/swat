@@ -159,6 +159,9 @@ significantly modifying the approach.
 - Procedures can only have up to two arguments (excluding dest)
     - because WASM module types must be predefined, we need to generate them after
       scanning Sax procs
+- Closures are pretty limited
+    - This is mostly because of WASM type generation and subtyping; the core mechanism
+      should work arbitrarily.
 
 = Implementation
 
@@ -328,6 +331,26 @@ Closures are garbage collected. There are some considerations to make about adjo
 since all closures are currently unrestricted. GC references can not be stored on the heap,
 so linear data cannot reference unrestricted closures, but we can still store heap references
 in the GC. This aligns with adjoint Sax's mode preorder restriction.
+
+Closure structs use the following type definitions:
+```
+  (rec
+    (type $clo_fun (func (param (ref $clo) i32) (result i32)))
+    (type $clo_struct (struct (field (ref $clo_struct))))
+  )
+```
+Essentially, a closure struct contains a pointer to a function which, when passed the struct and an argument,
+returns an address. We can already see a limitation here; closures using these types cannot return other
+closures. To solve this, we should generate closure types which return references as well.
+
+Writing a closure generates a top level definition, finds all closed variables, and allocates
+a struct with a function pointer and each enclosed address. To invoke it, we must fetch the
+function index from the first struct field, and then use WASM's `call_ref` instruction to call
+it. The generated top level definition will pull the captures out of the struct into locals.
+
+Closures make use of WASM GC's structural subtyping. Closures with arbitrary captures will
+always be a subtype of the main closure struct, and generated top-level definitions cast
+them appropriately before extracting the captures.
 
 == Printing
 

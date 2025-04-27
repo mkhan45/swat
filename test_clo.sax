@@ -22,6 +22,11 @@ proc one (d : nat) =
 proc succ (d : nat) (n : nat) =
   write d 'succ(n)
 
+proc two (d : nat) =
+  cut o : nat
+    call one o
+    call succ d o
+
 proc lambda (d : nat => nat) = write d {
     | (x, d_1) =>
         cut o : nat
@@ -29,18 +34,28 @@ proc lambda (d : nat => nat) = write d {
         call add d_1 x o
 }
 
-/*
-proc addn (d : nat => nat) (n : int) = write d {
-    | (x, d_1) => call add d_1 x n
-}
-*/
 
-proc tst (d : nat) =
+proc tst1 (d : nat) =
     cut f : nat => nat
         call lambda f
     cut a : nat
         call one a
     read f (a, d)
 
+/*
+proc addn (d : nat => nat) (n : int) = write d {
+    | (x, d_1) => call add d_1 x n
+}
+
+proc tst2 (d : nat) =
+    cut t : nat
+        call two t
+    cut f : nat => nat
+        call addn f t
+    cut a : nat
+        call one a
+    read f (a, d)
+*/
+
 proc main (d : nat) =
-    call tst d
+    call tst1 d

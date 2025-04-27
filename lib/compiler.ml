@@ -81,11 +81,10 @@ type fn_idx_map = {
     alloc : int;
     free : int;
     print_val : int;
-    invoke_clo : int;
 }
 
 let fn_idxs : fn_idx_map = {
-    alloc = 0; free = 1; print_val = 2; invoke_clo = 3
+    alloc = 0; free = 1; print_val = 2;
 }
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t
@@ -395,9 +394,9 @@ let compiler (env : compile_env) =
                 in
                 begin if (String.equal d wf.ret_dest) && not (String.equal "main" wf.name) then
                     if List.length xs > 0 then raise TypeError else
-                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.invoke_clo))]
+                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))]
                 else
-                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.invoke_clo))) :: asm xs { st with stack } wf
+                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
                 end
          | (InvokeClo (arg, dst)) :: xs ->
                  let f1 :: f2 :: a :: rest = st.stack in
@@ -569,7 +568,7 @@ let compiler (env : compile_env) =
                                        (* 1. generate a top level def from body, and struct for args
                                           2. get captures (don't bother reading yet cause it's a pain)
                                           3. put ref on stack *)
-                                       let fn_idx = List.length !(env.clo_funcs) + List.length (env.proc_ls) + fn_idxs.invoke_clo + 2 in
+                                       let fn_idx = List.length !(env.clo_funcs) + List.length (env.proc_ls) + fn_idxs.print_val + 2 in
                                        let captures = 
                                            get_captures body 
                                            |> List.filter ~f:(fun c -> not (String.equal c i))
