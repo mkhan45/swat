@@ -562,11 +562,11 @@ through Wasmtime. Since Python's native list type is a vector instead of a linke
 
 #figure(
     table(columns: 5,
-        [],         [swat], [Python], [OCaml], [OCaml (opt)]
+        [],         [swat], [Python], [OCaml], [OCaml (opt)],
 
-        [listrev],  [ 238], [   712], [  125], [ 24]
-        [ack],      [ 363], [  6900], [  934], [165]
-        [isort],    [ 204], [   492], [  247], [ 25]
+        [listrev],  [ 238], [   712], [  125], [ 24],
+        [ack],      [ 363], [  6900], [  934], [165],
+        [isort],    [ 204], [   492], [  247], [ 25],
     ),
     caption: "Benchmark results, in milliseconds",
     kind: "table",
