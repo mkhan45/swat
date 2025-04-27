@@ -37,7 +37,7 @@
   )
   (func $6 (type 4) (local i32) (call 4) (local.set 0) (local.get 0) (return_call 7))
   (func $7 (type 2) (local.get 0) (i32.const 1) (return_call 0))
-  (func $8 (type 4) (i32.const 10) (struct.new 7) (return))
+  (func $8 (type 4) (i32.const 10) (struct.new 8) (return))
   (func $9 (type 4) (call 6) (i32.const 1) (call 2) (i32.const 0) (i32.const 0) (call 0) (call 1) (i32.const 0))
   (data $0
     "\7b\22\69\6e\74\22\3a\22\69\6e\74\22\2c\22\6e\61"

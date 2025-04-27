@@ -165,7 +165,8 @@ significantly modifying the approach.
 The translation from Sax to WASM is guided by a few principles. First, the destination of the
 current translated command is just the top of the stack. Thus, translating a metavariable writing
 to destination `d` results in a sequence of WASM instructions that result in `d` on the top of the
-stack.
+stack. Each Sax procedure is translated to a WASM function which has an `i32` parameter for each
+argument, and returns one `i32`, which is the address of its dest.
 
 The translation from the stack IR to WASM carefully tracks the stack and locals. In particular, it tries
 to track the relationship between different variables, in order to accurately locate them in cases where a

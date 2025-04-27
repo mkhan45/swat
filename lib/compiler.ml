@@ -28,7 +28,7 @@ exception TypeError
 type type_name_map = (string, S.tp, String.comparator_witness) Map.t
 type proc_map = (string, (S.parm * S.parm list * S.cmd), String.comparator_witness) Map.t
 
-type clo_func = (S.parm * S.parm * int * S.cmd) (* dest, nargs, body *)
+type clo_func = (S.parm * S.parm * int * S.cmd) (* dest, inp, nargs, body *)
 type compile_env = { type_names : type_name_map; type_ls : string list; procs : proc_map; proc_ls : string list; clo_funcs : (clo_func list) ref }
 
 type type_idx_map = {
@@ -39,6 +39,8 @@ type type_idx_map = {
     unit_to_i32 : int; (* serialize types *)
     pair_to_unit : int;
     pair_to_i32 : int;
+    ref_i32_to_i32 : int; (* lifted closure *)
+    i32_to_ref : int (* func accepting one arg and returning clo *)
 }
 let type_idxs = {
     unit_fn = 0;
@@ -48,6 +50,8 @@ let type_idxs = {
     unit_to_i32 = 4;
     pair_to_unit = 5;
     pair_to_i32 = 6;
+    ref_i32_to_i32 = 7;
+    i32_to_ref = 8;
 }
 
 type fn_idx_map = {
@@ -550,10 +554,10 @@ let compiler (env : compile_env) =
                                | S.WriteCont (v, [(S.PairPat (i, o), body)]) ->
                                        (* 1. generate a top level def from body, and struct for args
                                           2. get captures (don't bother reading yet cause it's a pain)
-                                          4. put ref on stack *)
+                                          3. put ref on stack *)
                                        let fn_idx = List.length !(env.clo_funcs) in
                                        let clo = ((o, otp), (i, itp), fn_idx, body) in
-                                       let struct_tp_idx = type_idxs.pair_to_i32 + fn_idx + 1 in
+                                       let struct_tp_idx = type_idxs.i32_to_ref + fn_idx + 1 in
                                        env.clo_funcs := !(env.clo_funcs) @ [clo];
                                        let captures = get_captures body in
                                        let gets = List.map captures ~f:(fun c -> GetAddr c) in

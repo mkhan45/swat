@@ -37,6 +37,7 @@ let mod_types = [
     WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([], [NumT I32T])))]));
     WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [])))]));
     WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T; NumT I32T], [NumT I32T])))]));
+    WT.(RecT ([SubT (Final, [], DefFuncT (FuncT ([NumT I32T], [NumT I32T])))]));
 ] |> List.map ~f:Compiler.to_region
 
 let mod_imports = [
@@ -137,6 +138,11 @@ let main () =
         (*Printf.printf "\n";*)
         (*()*)
     )
+    in
+    let clos_ls = !(compile_env.clo_funcs) in
+    let clos = List.mapi clos_ls ~f:(fun idx (dest, inp, _idx, body) -> 
+        (* *)
+        raise Todo)
     in
     let wasm_mod = mk_mod (printer.init_fn :: funcs) [printer.data_segment] main_idx in
     Wasm.Print.module_ (Stdio.Out_channel.create ((List.hd_exn args) ^ ".wat")) 120 (Compiler.to_region wasm_mod);
