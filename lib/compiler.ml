@@ -39,7 +39,7 @@ type macro_inst = GetAddr of string (* ensures ref of name is top of stack *)
                 | Move of (string * string) (* moves values between refs *)
                 | Call of (string * string * string list)
                 | InvokeClo of (string * string) (* arg, dest *)
-                | Switch of (string * int * (int * (macro_inst list)) list) (* switches on top of stack *)
+                | Switch of (string * bool * (int * (macro_inst list)) list) (* switches on top of stack *)
                 | PushTag of (int * string)
                 | PushUnit of string
                 | GetUnit of string
@@ -192,8 +192,8 @@ let rec print_macro_inst = function
 | DerefPair (p) -> Printf.printf "DerefPair %s\n" p
 | Move (l, r) -> Printf.printf "Move %s to %s\n" r l
 | Call (p, d, ps) -> Printf.printf "Call %s (%s) into %s\n" p (String.concat ~sep:", " ps) d
-| Switch (s, tp_idx, ls) -> 
-        Printf.printf "Switch (%s) [tp_idx: %d]\n" s tp_idx;
+| Switch (s, need_inj, ls) -> 
+        Printf.printf "Switch (%s) [need_inj: %b]\n" s need_inj;
         List.iter ls ~f:(fun (i, is) ->
             Printf.printf "Case %d:\n" i;
             List.iter is ~f:print_macro_inst)
@@ -382,6 +382,10 @@ let compiler (env : compile_env) =
              let graph = st.addrs |> add_rel ~addr:d ~rel:(InjVal d) in
              let _ :: rest = st.stack in
              (W.Test (I32 Eqz)) :: asm xs { st with stack = (InjTag d) :: rest; addrs = graph } wf
+        | (Call ("_lt_", d, _ps)) :: xs ->
+             let graph = st.addrs |> add_rel ~addr:d ~rel:(InjVal d) in
+             let _ :: _ :: rest = st.stack in
+             (W.Compare (I32 LtS)) :: asm xs { st with stack = (InjTag d) :: rest; addrs = graph } wf
         | (Call (p, d, _ps)) :: xs -> (* parms should already be pushed *)
                 let (idx, proc) = List.findi_exn env.proc_ls ~f:(fun _i p' -> String.equal p p') in
                 let ((_d, proc_dest_tp), proc_parms, _) = Map.find_exn env.procs p in
@@ -403,13 +407,8 @@ let compiler (env : compile_env) =
                  let struct_get = W.StructGet (to_wasm_imm (type_idxs.i32_to_ref + 1), to_wasm_imm 0, None) in
                  let call = W.CallRef (to_wasm_imm type_idxs.ref_i32_to_i32) in
                  struct_get :: call :: asm xs { st with stack = (Addr dst) :: rest } wf
-         | (Switch (s, tp_idx, ls)) :: xs ->
+         | (Switch (s, need_inj, ls)) :: xs ->
                  (* TODO: cleanup, optimize to bulk load *)
-                 let need_inj =
-                     let tp = List.nth_exn env.type_ls tp_idx in
-                     let Plus ls = fix (TpName tp) in
-                     List.exists ls ~f:(fun (_l, t) -> match t with | One -> false | _ -> true)
-                 in
                  let (dealloc_instrs, st) = match st.stack with
                  | (InjTag t) :: (InjData t') :: _rest when String.equal s t && String.equal s t' ->
                          let (i1, st') = put_local st in
@@ -500,10 +499,21 @@ let compiler (env : compile_env) =
               let new_vars = Map.set vars ~key:v ~data:t in
               let (i, e') = compile_dest ~cmd:r ~dest ~vars:new_vars e in
               ((is @ (InitAddr v :: i)), e')
+        (*| S.Call (("_eqz_" | "_lt_") as p, d, ps) ->*)
+        (*      let gets = List.map ps ~f:(fun v -> GetAddr v) in*)
+        (*      ((PushUnit d) :: gets @ [Call (p, d, ps)], wasm_func)*)
         | S.Call (p, d, []) when String.is_prefix p ~prefix:"_const_" ->
               let n = String.drop_prefix p (String.length "_const_") |> int_of_string in
               ([PushInt (n, d)], wasm_func)
         | S.Call (p, d, ps) ->
+              let (dst, args) = match Map.find env.procs p with
+              | Some (dst, args, _) -> (dst, args)
+              | None -> (match p with
+                         | "_eqz_" -> (("d", S.TpName "bool"), [("a", S.TpName "int")])
+                         | "_lt_" -> (("d", S.TpName "bool"), [("a", S.TpName "int"); ("b", S.TpName "int")])
+                         | ("_add_" | "_sub_") -> (("d", S.TpName "int"), [("a", S.TpName "int"); ("b", S.TpName "int")]))
+              in
+              if not (List.length args = List.length ps) then raise TypeError;
               let gets = List.map ps ~f:(fun v -> GetAddr v) in
               (gets @ [Call (p, d, ps)], wasm_func)
         | S.ReadClo (f, PairPat (a, d)) ->
@@ -535,11 +545,12 @@ let compiler (env : compile_env) =
                           let (is, _e) = compile_dest ~cmd:b ~dest:dest ~vars:inner_env wasm_func in
                           (i, (AliasInj (v, v')) :: is))
                       in
-                      let tp_idx =
-                          let TpName tp_name = Map.find_exn vars v in
-                          List.findi_exn env.type_ls ~f:(fun _i n -> String.equal tp_name n) |> fst
+                      let need_inj =
+                          let tp = Map.find_exn vars v in
+                          let Plus ls = fix tp in
+                          List.exists ls ~f:(fun (_l, t) -> match t with | One -> false | _ -> true)
                       in
-                      ([Switch (v, tp_idx, case_instrs)], wasm_func))
+                      ([Switch (v, need_inj, case_instrs)], wasm_func))
         | _ ->
             let (dest_var, dest_tp) = dest in
             let dest_tp' = fix dest_tp in

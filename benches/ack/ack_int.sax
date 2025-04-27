@@ -1,0 +1,33 @@
+type bool = +{ 'false : 1, 'true : 1 }
+
+proc ack (d : int) (m : int) (n : int) =
+    cut one : int
+        call _const_1 one
+    cut test_m : bool
+        call _eqz_ test_m m
+    read test_m {
+    | 'true(u) =>
+        call _add_ d one n
+    | 'false(u) =>
+        cut m_minus_1 : int
+            call _sub_ m_minus_1 m one
+        cut test_n : bool
+            call _eqz_ test_n n
+        read test_n {
+        | 'true(u) =>
+            call ack d m_minus_1 one
+        | 'false(u) =>
+            cut n_minus_1 : int
+                call _sub_ n_minus_1 n one
+            cut inner : int
+                call ack inner m n_minus_1
+            call ack d m_minus_1 inner
+        }
+    }
+
+proc main (d : int) =
+    cut a : int
+        call _const_3 a
+    cut b : int
+        call _const_11 b
+    call ack d a b

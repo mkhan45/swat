@@ -26,4 +26,6 @@ To build the project, run the following command:
 make
 ```
 
-Then, `./run.sh <test>` should build and run each test.
+Then, `./run.sh <test>` should build and run each test. Most of the Sax files in the test folder don't have a main proc,
+so you will have more luck running the benches. The grammar also diverges a little bit from the later Sax labs since Reads
+can have a single case without braces.

@@ -39,12 +39,6 @@ unsafe fn val_to_string(mem_ptr: *const u8, json: &JsonValue, tp: &JsonValue, pt
 // [ int ] [ int ] ?
 // can't really come up with a tagging scheme
 
-enum FreeType {
-    Leaf,
-    Inj(Vec<usize>),
-    Pair(usize, usize),
-}
-
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
 
@@ -54,6 +48,7 @@ fn main() {
             let mut config = Config::new();
             config.cranelift_opt_level(OptLevel::Speed);
             config.wasm_gc(true);
+            config.max_wasm_stack(1048576);
 
             let engine = Engine::new(&config).unwrap();
 
@@ -124,15 +119,15 @@ fn main() {
             let main = instance.get_typed_func::<(), i32>(&mut store, "main").unwrap();
             let _res = main.call(&mut store, ()).unwrap();
 
-            println!("allocs: {}", *allocs.lock().unwrap());
-            unsafe {
-                let mut mem_buf: Vec<i32> = vec![];
-                let mut ptr = mem_ptr as *mut i32;
-                for i in 0..30 {
-                    mem_buf.push(*(ptr.add(i)));
-                }
-                println!("mem: {:?}", mem_buf);
-            }
+            //println!("allocs: {}", *allocs.lock().unwrap());
+            //unsafe {
+            //    let mut mem_buf: Vec<i32> = vec![];
+            //    let mut ptr = mem_ptr as *mut i32;
+            //    for i in 0..30 {
+            //        mem_buf.push(*(ptr.add(i)));
+            //    }
+            //    println!("mem: {:?}", mem_buf);
+            //}
         }
         _ => {
             println!("expected wasm file");

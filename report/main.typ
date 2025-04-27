@@ -22,7 +22,7 @@ It is an appealing compilation target because it can be run quickly and securely
 on many platforms, including embedded devices and web browsers, and is used
 in industry for accelerating web performance or running untrusted code. In this paper,
 I detail the structure and implementation of a Sax to WASM compiler, supporting linear
-positive types along with unrestricted closures and 32-bit integers.
+positive types along with 32-bit integers and proof-of-concept support for unrestricted closures.
 
 #v(8pt)
 
@@ -42,8 +42,8 @@ extensibility for supporting adjoint Sax through WASM GC.
 
 The variant of Sax implemented by this compiler is a modified version of the core linear, positive
 fragment introduced in Lab 1, with two additions. First, it supports 32-bit signed integers,
-leveraging WASM's i32 type. It also supports closures. Both of these types are always unrestricted,
-supporting all structural rules. Units are also unrestricted.
+leveraging WASM's i32 type. It also has limited, proof-of-concept support for closures. Both of 
+these types are always unrestricted, supporting all structural rules. Units are also unrestricted.
 
 The performance of a compiler targeting WASM largely depends on the source language. Manually memory-managed
 languages like C or Rust are often only 20-40% slower through WASM, while more dynamic languages like OCaml
@@ -159,9 +159,13 @@ significantly modifying the approach.
 - Procedures can only have up to two arguments (excluding dest)
     - because WASM module types must be predefined, we need to generate them after
       scanning Sax procs
-- Closures are pretty limited
+- Closures are very limited
     - This is mostly because of WASM type generation and subtyping; the core mechanism
       should work arbitrarily.
+- Files which do not use all the required imports (alloc, free, print) may not compile
+    - `wasm-opt`'s dead code removal might mess up the imports expected by the runner, despite my efforts
+    - The best way to avoid this is to keep the main proc a small call to another proc.
+- Static checking is a bit limited
 
 = Implementation
 
@@ -347,17 +351,16 @@ Closure structs use the following type definitions:
   )
 ```
 Essentially, a closure struct contains a pointer to a function which, when passed the struct and an argument,
-returns an address. We can already see a limitation here; closures using these types cannot return other
-closures. To solve this, we should generate closure types which return references as well.
+returns an address. Unfortunately, the limitations on closures stem from not yet generating more types like this;
+closures using these types cannot return other closures, or have more than one capture. To solve this, we
+should generate closure types which return references as well. Making use of WASM GC's structural subtyping,
+all struct types which contain a funcref in the first field will be a subtype of the core closure struct,
+and by upcasting we can recycle most of the same code.
 
 Writing a closure generates a top level definition, finds all closed variables, and allocates
 a struct with a function pointer and each enclosed address. To invoke it, we must fetch the
 function index from the first struct field, and then use WASM's `call_ref` instruction to call
 it. The generated top level definition will pull the captures out of the struct into locals.
-
-Closures make use of WASM GC's structural subtyping. Closures with arbitrary captures will
-always be a subtype of the main closure struct, and generated top-level definitions cast
-them appropriately before extracting the captures.
 
 == Printing
 
@@ -554,12 +557,16 @@ the main proc. Additionally, since the allocator is written in Rust instead of W
 the startup time of the runtime, including memory intialization and Wasmtime starting, to about 1 ms.
 
 I benchmark against Python and OCaml. I tried to benchmark against `wasm_of_ocaml`, but it uses WASM's exceptions
-proposal which is not yet supported by Wasmtime.
+proposal which is not yet supported by Wasmtime. I did not have time to benchmark against C compiled to WASM and run 
+through Wasmtime. Since Python's native list type is a vector instead of a linkedlist, I used a tupled linkedlist representation.
 
 #figure(
     table(columns: 4,
         [],         [swat], [Python], [OCaml],
+
         [listrev],  [ 238], [   712], [  125],
+        [ack],      [ 363], [  6900], [  934],
+        [isort],     [ 204], [  492], [  247],
     ),
     caption: "Benchmark results, in milliseconds",
     kind: "table",
@@ -569,12 +576,22 @@ proposal which is not yet supported by Wasmtime.
 #figure(
     table(columns: 2,
         [Benchmark Name], [Description],
+
         [listrev], [Initializes a linked list ranging from 1 to 10000, and then reverses it. Iterated 500 times.],
+        [ack],     [Computes $"Ack"(3, 11)$],
+        [isort],   [Insertion sorts a pre-generated random list of 5000 ints],
     ),
     caption: "Benchmark descriptions",
     kind: "table",
     supplement: "Table"
 )
+
+These benchmarks exceeded my expectations. OCaml compiles directly to native, so it should better
+most of the time. However, for purely numeric benchmarks like `ack`, it is significantly slower, likely
+due to its `i31` int tagging scheme. For list sorting, it seems likely that OCaml's slow comparisons
+slowed it down, but it almost catches up due to its faster general data manipulation.
+
+More benchmarks would be needed for a real picture of how Swat performs.
 
 = Related Work
 
