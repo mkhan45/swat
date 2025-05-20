@@ -9,12 +9,21 @@ exception Todo
 (* types of fn args or returns *)
 type stack_type = I32
                 | Clo of clo_type
+                [@@deriving eq]
 
-type clo_type = { capture_tps : stack_type list; inp: stack_type; ret: stack_type }
-type func_type = { inps : stack_type list; outs : stack_type list }
+and clo_type = { capture_tps : stack_type list; inp: stack_type; ret: stack_type } [@@deriving eq]
+and func_type = { inps : stack_type list; outs : stack_type list } [@@deriving eq]
 
-let func_types = (func_type list) ref
-let clo_types = (clo_type list) ref
+and type_def = FuncType of func_type
+             | CloType of clo_type
+             [@@deriving eq]
 
-let func_typ_idx (ftp : func_type) : int = raise Todo
-let clo_typ_idx (ftp : func_type) : int = raise Todo
+let type_decls : (type_def list) ref = ref []
+
+let typ_idx (t : type_def) : int =
+    let search = List.findi (!type_decls) ~f:(fun _ t' -> equal_type_def t t') in
+    match search with
+    | Some (i, _) -> i
+    | None -> 
+            type_decls := (!type_decls) @ [t];
+            List.length (!type_decls) - 1
