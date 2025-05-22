@@ -32,6 +32,7 @@ let gen_rectype : WT.rec_type =
     let rec loop (remaining : type_def list) : WT.str_type list = match remaining with
     | FuncType f :: xs -> raise Todo
     | CloType c :: xs -> raise Todo
+    in
     let def_types = loop (!type_decls) in
     let sub_ts = List.map def_types ~f:(fun dt -> WT.(SubT (Final, [], dt))) in
     WT.RecT sub_ts
