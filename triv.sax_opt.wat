@@ -1,10 +1,8 @@
 (module
- (rec
-  (type $0 (func (param i32 i32) (result i32)))
-  (type $1 (func (param i32)))
-  (type $2 (func (param i32 i32)))
-  (type $3 (func (result i32)))
- )
+ (type $3 (func (result i32)))
+ (type $0 (func (param i32 i32) (result i32)))
+ (type $1 (func (param i32)))
+ (type $2 (func (param i32 i32)))
  (import "sax" "mem" (memory $0 1))
  (import "sax" "alloc" (func $0 (type $0) (param i32 i32) (result i32)))
  (import "sax" "free" (func $1 (type $1) (param i32)))

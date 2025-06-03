@@ -56,7 +56,7 @@ let mod_imports = [
 
 let mk_mod funcs datas main_idx = W.{
     W.empty_module with 
-    types = [T.gen_rectype () |> Compiler.to_region];
+    types = T.gen_rectypes () |> List.map ~f:Compiler.to_region;
     funcs = funcs |> List.map ~f:Compiler.to_region;
     imports = mod_imports |> List.map ~f:Compiler.to_region;
     exports = [

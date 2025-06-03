@@ -1,17 +1,15 @@
 (module
-  (rec
-    (type $0 (func (param i32 i32) (result i32)))
-    (type $1 (func (param i32)))
-    (type $2 (func (param i32 i32)))
-    (type $3 (func (result i32)))
-  )
+  (type $0 (func (param i32 i32) (result i32)))
+  (type $1 (func (param i32)))
+  (type $2 (func (param i32 i32)))
+  (type $3 (func (result i32)))
   (import "sax" "mem" (memory $0 i32 1))
   (import "sax" "alloc" (func $0 (type 0)))
   (import "sax" "free" (func $1 (type 1)))
   (import "sax" "print_val" (func $2 (type 2)))
   (export "serialize_types" (func 3))
   (export "main" (func 13))
-  (func $3 (type 4) (i32.const 0) (i32.const 0) (i32.const 99) (memory.init 0 0) (i32.const 99))
+  (func $3 (type 3) (i32.const 0) (i32.const 0) (i32.const 99) (memory.init 0 0) (i32.const 99))
   (func $4
     (type 0)
     (local i32 i32 i32 i32 i32 i32 i32 i32)
