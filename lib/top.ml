@@ -102,6 +102,7 @@ let main () =
     let procs = proc_ls |> Map.of_alist_exn (module String) in
     let (main_idx, _) = List.findi_exn proc_ls ~f:(fun i (n, _) -> String.equal n "main") in
     let printer = Wasm_print.mk_printer type_ls in
+    Typegen.test ();
     (*let tags = Wasm_print.prog_tags env in*)
     let compile_env = Compiler.{ type_names; type_ls = type_ls |> List.map ~f:fst ; procs; proc_ls = proc_ls |> List.map ~f:fst; clo_funcs = ref [] } in
     let (compile_dest, asm) = Compiler.compiler compile_env in
