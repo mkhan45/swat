@@ -44,6 +44,6 @@ let mk_printer (type_ls : (string * S.tp) list) : printer =
         let sz = (String.length data_str) |> C.to_wasm_int |> C.to_region in
         let push_sz = W.Const sz in
         let body = [push_z; push_z; push_sz; W.MemoryInit (C.to_wasm_imm 0, C.to_wasm_imm 0); push_sz] |> List.map ~f:C.to_region in
-        W.{ ftype = C.to_wasm_imm C.type_idxs.unit_to_i32; locals = []; body }
+        W.{ ftype = C.to_wasm_imm Typegen.unit_to_i32; locals = []; body }
     in
     { data_segment; init_fn }

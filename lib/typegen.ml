@@ -18,6 +18,10 @@ and type_def = FuncType of func_type
              | CloType of clo_type
              [@@deriving eq]
 
+let rec st_of_sax_tp (sax_tp : S.tp) : stack_type = match sax_tp with
+| Arrow (i, o) -> Clo { capture_tps = []; inp = st_of_sax_tp i; ret = st_of_sax_tp o }
+| _ -> I32
+
 let type_decls : (type_def list) ref = ref []
 
 let typ_idx (t : type_def) : int =
@@ -54,6 +58,11 @@ let gen_rectype () : WT.rec_type =
     let def_types = loop 0 in
     let sub_ts = List.map def_types ~f:(fun dt -> WT.(SubT (Final, [], dt))) in
     WT.RecT sub_ts
+
+let pair_to_i32 = typ_idx (FuncType { inps = [I32; I32]; outs = [I32] })
+let i32_to_unit = typ_idx (FuncType { inps = [I32]; outs = [] })
+let pair_to_unit = typ_idx (FuncType { inps = [I32; I32]; outs = [] })
+let unit_to_i32 = typ_idx (FuncType { inps = []; outs = [I32] })
 
 let test () : unit =
     let ct = { capture_tps = [I32]; inp = I32; ret = I32 } in
