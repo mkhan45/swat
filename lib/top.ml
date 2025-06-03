@@ -98,13 +98,6 @@ let main () =
             Compiler.{ stack ; locals; addrs }
         in
         let wasm = asm insts st e in
-        let locals =
-            let nlocals = !(func_env.nlocals) in
-            List.(range 0 nlocals |> map ~f:(fun i -> 
-                if List.exists !(func_env.ref_locals) ~f:(Int.equal i)
-                then W.{ ltype = WT.RefT (NoNull, VarHT (StatX (Int32.of_int_exn 10))) } |> Compiler.to_region
-                else W.{ ltype = WT.NumT I32T } |> Compiler.to_region))
-        in
 
         let wasm = match n with
         | "main" -> 
@@ -120,6 +113,29 @@ let main () =
         | _ -> wasm
         in
 
+        List.iter !(compile_env.clo_funcs) ~f:(fun (dest, inp, caps, wf, body) ->
+            let clo_t = T.{ capture_tps = List.map caps ~f:(Fn.compose st_of_sax_tp snd);
+                            inp = st_of_sax_tp @@ snd inp;
+                            ret = st_of_sax_tp @@ snd dest }
+            in
+            let _clo_tp_idx = T.typ_idx (T.CloType clo_t) in
+            ());
+
+        let locals =
+            let nlocals = !(func_env.nlocals) in
+            List.(range 0 nlocals |> map ~f:(fun i ->
+                let local_st = match List.Assoc.find !(func_env.local_tps) ~equal:Int.equal i with
+                    | Some st -> st
+                    | None -> T.I32
+                in
+                match local_st with
+                | T.Clo ct ->
+                    let idx = T.typ_idx (CloType ct) in
+                    W.{ ltype = WT.RefT (NoNull, VarHT (StatX (Int32.of_int_exn idx))) } |> Compiler.to_region
+                | T.I32 ->
+                    W.{ ltype = WT.NumT I32T } |> Compiler.to_region))
+        in
+
         (* TODO: generate types *)
         let ftype =
             let arg_tps = List.map a ~f:(Fn.compose T.st_of_sax_tp snd) in
@@ -127,13 +143,6 @@ let main () =
             let ft = T.FuncType { inps = arg_tps; outs = [rtp] } in
             T.typ_idx ft
         in
-        (* let ftype = match (List.length a, ret_tp) with *)
-        (* | (0, A.Arrow (_, _)) -> Compiler.type_idxs.unit_to_ref *)
-        (* | (0, _) -> Compiler.type_idxs.unit_to_i32 *)
-        (* | (1, A.Arrow (_, _)) -> Compiler.type_idxs.i32_to_ref *)
-        (* | (1, _) -> Compiler.type_idxs.i32_to_i32 *)
-        (* | (2, _) -> Compiler.type_idxs.pair_to_i32 *)
-        (* in *)
         W.{ ftype = Compiler.to_wasm_imm ftype; locals; body = wasm |> List.map ~f:Compiler.to_region }
         (*Printf.printf "WASM:\n";*)
         (*List.iter wasm ~f:(fun i -> Wasm.Print.instr Out_channel.stdout 120 @@ Compiler.to_region i);*)
@@ -151,12 +160,16 @@ let main () =
             let addrs = Map.of_alist_exn (module String) @@ List.map var_env ~f:(fun (v, _) -> (v, [])) in
             Compiler.{ stack; locals; addrs }
         in
-        let struct_idx = Compiler.type_idxs.i32_to_ref + (List.length caps) + 1 in
+        let clo_t = T.{ capture_tps = List.map caps ~f:(Fn.compose st_of_sax_tp snd);
+                        inp = st_of_sax_tp @@ snd inp;
+                        ret = st_of_sax_tp dest_tp }
+        in
+        let clo_tp_idx = T.typ_idx (T.CloType clo_t) in
         let get_captures = List.concat_mapi caps ~f:(fun i (_c, _ctp) ->
             Compiler.(
                 [W.LocalGet (to_wasm_imm 0); 
-                W.RefCast WT.(NoNull, VarHT (StatX (Int32.of_int_exn struct_idx)));
-                W.StructGet (to_wasm_imm struct_idx, to_wasm_imm (i+1), None);
+                W.RefCast WT.(NoNull, VarHT (StatX (Int32.of_int_exn clo_tp_idx)));
+                W.StructGet (to_wasm_imm clo_tp_idx, to_wasm_imm (i+1), None);
                 W.LocalSet (to_wasm_imm (i+2))]
             )
         )
