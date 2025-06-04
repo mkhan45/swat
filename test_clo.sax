@@ -42,11 +42,11 @@ proc tst1 (d : nat) =
         call one a
     read f (a, d)
 
-/*
 proc addn (d : nat => nat) (n : int) = write d {
     | (x, d_1) => call add d_1 x n
 }
 
+/*
 proc tst2 (d : nat) =
     cut t : nat
         call two t

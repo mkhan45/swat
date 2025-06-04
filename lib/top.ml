@@ -177,7 +177,7 @@ let main () =
         let wasm = get_captures @ asm body st wf in
         let nlocals = !(wf.nlocals) + List.length (caps) in
         let locals = List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region)) in
-        W.{ ftype = Compiler.(to_wasm_imm type_idxs.ref_i32_to_i32); locals; body = wasm |> List.map ~f:Compiler.to_region }
+        W.{ ftype = Compiler.(to_wasm_imm (clo_tp_idx + 1)); locals; body = wasm |> List.map ~f:Compiler.to_region }
     )
     in
     let wasm_mod = mk_mod (printer.init_fn :: funcs @ clos) [printer.data_segment] main_idx in
