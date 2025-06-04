@@ -33,10 +33,13 @@ let typ_idx (t : type_def) : int =
             | FuncType _ ->
                 type_decls := (!type_decls) @ [t];
                 List.length (!type_decls) - 1
-            | CloType ct ->
+            | CloType ct when List.length ct.capture_tps = 0 ->
                 let caller_t = FuncType { inps = [Clo ct; ct.inp]; outs = [ct.ret] } in
                 type_decls := (!type_decls) @ [t; caller_t];
-                List.length (!type_decls) - 2)
+                List.length (!type_decls) - 2
+            | CloType ct ->
+                type_decls := (!type_decls) @ [t];
+                List.length (!type_decls) - 1)
 
 let ser_stack_type (st : stack_type) : WT.val_type = match st with
 | I32 -> WT.(NumT I32T)
@@ -50,12 +53,15 @@ let ser_func_type (ft : func_type) : WT.func_type =
     (FuncT (inp_ts, out_ts))
 
 let gen_rectypes () : WT.rec_type list =
-    let rec loop (idx : int) : (WT.str_type list) list=
+    let rec loop (idx : int) : WT.rec_type list =
     if idx = List.length (!type_decls) then [] else
     match List.nth_exn (!type_decls) idx with
-    | FuncType f -> [WT.(DefFuncT (ser_func_type f))] :: loop (idx + 1)
-    | CloType c -> 
-        let self_call_ftp = { inps = [(Clo c); c.inp]; outs = [c.ret] } in
+    | FuncType f -> 
+        let dt = WT.(DefFuncT (ser_func_type f)) in
+        let rec_t = WT.(RecT [(SubT (Final, [], dt))]) in
+        rec_t :: loop (idx + 1)
+    | CloType c ->
+        let self_call_ftp = { inps = [(Clo { c with capture_tps = [] }); c.inp]; outs = [c.ret] } in
         let self_call_tp = FuncType self_call_ftp in
         let self_call_def = WT.DefFuncT (ser_func_type self_call_ftp) in
         let self_call_idx = typ_idx self_call_tp in
@@ -64,10 +70,18 @@ let gen_rectypes () : WT.rec_type list =
         let field_ts = List.map (self_call_val_tp :: capture_tps) ~f:(fun ct -> WT.(FieldT (Cons, ValStorageT ct))) in
         let struct_t = WT.StructT (field_ts) in
         let struct_def = WT.DefStructT struct_t in
-        [struct_def; self_call_def] :: loop (idx + 2)
+        (match c.capture_tps with
+        | [] -> 
+                let rec_t = WT.(RecT [SubT (NoFinal, [], struct_def); SubT (Final, [], self_call_def)]) in
+                rec_t :: loop (idx + 2)
+        | _ ->
+            let super_ct = { c with capture_tps = [] } in
+            let super_idx = typ_idx (CloType super_ct) in
+            let super = WT.[VarHT (StatX (Int32.of_int_exn super_idx))] in
+            let rec_t = WT.(RecT [SubT (NoFinal, super, struct_def)]) in
+            rec_t :: loop (idx + 1))
     in
-    let def_types = loop 0 in
-    List.map def_types ~f:(fun dts -> WT.(RecT (List.map dts ~f:(fun dt -> SubT (Final, [], dt)))))
+    loop 0
 
 let pair_to_i32 = typ_idx (FuncType { inps = [I32; I32]; outs = [I32] })
 let i32_to_unit = typ_idx (FuncType { inps = [I32]; outs = [] })

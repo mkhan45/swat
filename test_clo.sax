@@ -46,7 +46,6 @@ proc addn (d : nat => nat) (n : int) = write d {
     | (x, d_1) => call add d_1 x n
 }
 
-/*
 proc tst2 (d : nat) =
     cut t : nat
         call two t
@@ -55,7 +54,10 @@ proc tst2 (d : nat) =
     cut a : nat
         call one a
     read f (a, d)
-*/
 
 proc main (d : nat) =
-    call tst1 d
+    cut x : nat
+        call tst1 x
+    cut y : nat
+        call tst2 y
+    call add d x y

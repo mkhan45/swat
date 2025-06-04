@@ -48,6 +48,7 @@ fn main() {
             let mut config = Config::new();
             config.cranelift_opt_level(OptLevel::Speed);
             config.wasm_gc(true);
+            config.wasm_function_references(true);
             config.max_wasm_stack(1048576);
 
             let engine = Engine::new(&config).unwrap();

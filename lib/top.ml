@@ -165,6 +165,7 @@ let main () =
                         ret = st_of_sax_tp dest_tp }
         in
         let clo_tp_idx = T.typ_idx (T.CloType clo_t) in
+        let caller_tp_idx = T.typ_idx (T.CloType { clo_t with capture_tps = [] }) + 1 in
         let get_captures = List.concat_mapi caps ~f:(fun i (_c, _ctp) ->
             Compiler.(
                 [W.LocalGet (to_wasm_imm 0); 
@@ -175,9 +176,9 @@ let main () =
         )
         in
         let wasm = get_captures @ asm body st wf in
-        let nlocals = !(wf.nlocals) + List.length (caps) in
+        let nlocals = !(wf.nlocals) + List.length (caps) + 1 in
         let locals = List.(range 0 nlocals |> map ~f:(fun _ -> W.{ ltype = WT.NumT I32T } |> Compiler.to_region)) in
-        W.{ ftype = Compiler.(to_wasm_imm (clo_tp_idx + 1)); locals; body = wasm |> List.map ~f:Compiler.to_region }
+        W.{ ftype = Compiler.(to_wasm_imm caller_tp_idx); locals; body = wasm |> List.map ~f:Compiler.to_region }
     )
     in
     let wasm_mod = mk_mod (printer.init_fn :: funcs @ clos) [printer.data_segment] main_idx in
