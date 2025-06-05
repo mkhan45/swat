@@ -14,9 +14,9 @@
  (import "sax" "free" (func $1 (type $1) (param i32)))
  (import "sax" "print_val" (func $2 (type $2) (param i32 i32)))
  (data $0 "{\"int\":\"int\",\"nat\":{\"\'zero\":null,\"\'succ\":\"nat\"}}")
- (elem declare func $14 $15)
+ (elem declare func $15 $16)
  (export "serialize_types" (func $3))
- (export "main" (func $13))
+ (export "main" (func $14))
  (func $3 (type $3) (result i32)
   (memory.init $0
    (i32.const 0)
@@ -73,20 +73,20 @@
    (i32.const 1)
   )
  )
- (func $13 (type $3) (result i32)
+ (func $14 (type $3) (result i32)
   (local $0 (ref $8))
   (call $2
    (call $5
-    (call $14
+    (call $15
      (struct.new $5
-      (ref.func $14)
+      (ref.func $15)
      )
      (call $6)
     )
     (call_ref $6
      (local.tee $0
       (struct.new $8
-       (ref.func $15)
+       (ref.func $16)
        (call $7
         (call $6)
        )
@@ -108,13 +108,13 @@
   )
   (i32.const 0)
  )
- (func $14 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
+ (func $15 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
   (return_call $5
    (local.get $1)
    (call $6)
   )
  )
- (func $15 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
+ (func $16 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
   (return_call $5
    (struct.get $8 1
     (ref.cast (ref $8)

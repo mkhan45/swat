@@ -67,6 +67,7 @@ defn :
 
 cmd :
   | READ;
+    RIGHTARROW;
     x = IDENT;
     pat = pat;
     { Ast.ReadClo(x, pat) }

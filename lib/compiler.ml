@@ -73,18 +73,6 @@ type type_idx_map = {
     unit_to_ref : int; (* func returning clo *)
     i32_to_ref : int; (* func accepting one arg and returning clo *)
 }
-let type_idxs = {
-    unit_fn = 0;
-    i32_to_unit = 1;
-    i32_to_i32 = 2;
-    i32_to_pair = 3;
-    unit_to_i32 = 4;
-    pair_to_unit = 5;
-    pair_to_i32 = 6;
-    ref_i32_to_i32 = 7;
-    unit_to_ref = 8;
-    i32_to_ref = 9;
-}
 
 type fn_idx_map = {
     alloc : int;
@@ -346,8 +334,15 @@ let compiler (env : compile_env) =
                                    | [] -> asm xs st wf (* already on stack *)
                                    | is -> is @ asm xs { st with stack = (InjTag s) :: st.stack } wf)
         | (GetRef s) :: xs ->
-                let (idx, _) = List.findi_exn st.locals ~f:(fun _i v -> match v with | GcRef s' when String.equal s s' -> true | _ -> false) in
-                W.LocalGet (to_wasm_imm idx) :: asm xs { st with stack = (GcRef s) :: st.stack } wf
+                let search = List.findi st.locals ~f:(fun _i v -> 
+                    match v with | GcRef s' when String.equal s s' -> true | _ -> false) 
+                in
+                (match search with
+                | Some (idx, _) -> W.LocalGet (to_wasm_imm idx) :: asm xs { st with stack = (GcRef s) :: st.stack } wf
+                | None -> 
+                    (match get_addr s with
+                                    | [] -> asm xs st wf (* already on stack *)
+                                    | is -> is @ asm xs { st with stack = (GcRef s) :: st.stack } wf))
         | (GetFunc idx) :: xs -> (W.RefFunc (to_wasm_imm idx)) :: asm xs { st with stack = (GcRef "func") :: st.stack } wf
         | (InitAddr (s, stack_tp)) :: xs ->
                 (match st.stack with
@@ -598,6 +593,10 @@ let compiler (env : compile_env) =
                                        let fn_idx = 
                                            List.length !(env.clo_funcs) + 
                                            List.length (env.proc_ls) + fn_idxs.print_val + 2 
+                                       in
+                                       let fn_idx = match otp with
+                                       | Arrow (_, _) -> fn_idx + 1
+                                       | _ -> fn_idx
                                        in
                                        let captures = 
                                            get_captures body 

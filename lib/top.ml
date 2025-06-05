@@ -165,7 +165,7 @@ let main () =
                         ret = st_of_sax_tp dest_tp }
         in
         let clo_tp_idx = T.typ_idx (T.CloType clo_t) in
-        let caller_tp_idx = T.typ_idx (T.CloType { clo_t with capture_tps = [] }) + 1 in
+        let caller_tp_idx = T.typ_idx (T.CloType (T.norm_clo clo_t)) + 1 in
         let get_captures = List.concat_mapi caps ~f:(fun i (_c, _ctp) ->
             Compiler.(
                 [W.LocalGet (to_wasm_imm 0); 

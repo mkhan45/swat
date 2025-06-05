@@ -8,12 +8,14 @@
   (type $7 (func (result (ref 5))))
   (type $8 (sub 5 (struct (field (ref 6)) (field i32))))
   (type $9 (func (param i32) (result (ref 5))))
+  (rec (type $10 (sub (struct (field (ref 11))))) (type $11 (func (param (ref 10) i32) (result (ref 5)))))
+  (type $12 (func (result (ref 10))))
   (import "sax" "mem" (memory $0 i32 1))
   (import "sax" "alloc" (func $0 (type 0)))
   (import "sax" "free" (func $1 (type 1)))
   (import "sax" "print_val" (func $2 (type 2)))
   (export "serialize_types" (func 3))
-  (export "main" (func 13))
+  (export "main" (func 14))
   (func $3 (type 3) (i32.const 0) (i32.const 0) (i32.const 48) (memory.init 0 0) (i32.const 48))
   (func $4 (type 3) (i32.const 0) (i32.const 0) (return_call 0))
   (func $5
@@ -40,7 +42,7 @@
   (func $6 (type 3) (local i32) (call 4) (local.set 0) (local.get 0) (return_call 7))
   (func $7 (type 4) (local.get 0) (i32.const 1) (return_call 0))
   (func $8 (type 3) (local i32) (call 6) (local.set 0) (local.get 0) (return_call 7))
-  (func $9 (type 7) (ref.func 14) (struct.new 5) (return))
+  (func $9 (type 7) (ref.func 15) (struct.new 5) (return))
   (func $10
     (type 3)
     (local (ref 5) i32)
@@ -55,7 +57,7 @@
     (call_ref 6)
     (return)
   )
-  (func $11 (type 9) (ref.func 15) (local.get 0) (struct.new 8) (return))
+  (func $11 (type 9) (ref.func 16) (local.get 0) (struct.new 8) (return))
   (func $12
     (type 3)
     (local i32 (ref 5) i32)
@@ -73,7 +75,8 @@
     (call_ref 6)
     (return)
   )
-  (func $13
+  (func $13 (type 12) (ref.func 18) (struct.new 10) (return))
+  (func $14
     (type 3)
     (local i32 i32)
     (call 10)
@@ -91,8 +94,8 @@
     (call 1)
     (i32.const 0)
   )
-  (func $14 (type 6) (local i32 i32 i32 i32) (call 6) (local.set 2) (local.get 1) (local.get 2) (return_call 5))
-  (func $15
+  (func $15 (type 6) (local i32 i32 i32 i32) (call 6) (local.set 2) (local.get 1) (local.get 2) (return_call 5))
+  (func $16
     (type 6)
     (local i32 i32)
     (local.get 0)
@@ -103,6 +106,18 @@
     (local.get 1)
     (return_call 5)
   )
+  (func $17
+    (type 6)
+    (local i32 i32)
+    (local.get 0)
+    (ref.cast (ref 8))
+    (struct.get 8 1)
+    (local.set 2)
+    (local.get 1)
+    (local.get 2)
+    (return_call 5)
+  )
+  (func $18 (type 11) (local i32) (ref.func 17) (local.get 1) (struct.new 8) (return))
   (data $0
     "\7b\22\69\6e\74\22\3a\22\69\6e\74\22\2c\22\6e\61"
     "\74\22\3a\7b\22\27\7a\65\72\6f\22\3a\6e\75\6c\6c"

@@ -52,6 +52,14 @@ let ser_func_type (ft : func_type) : WT.func_type =
     let out_ts = List.map ft.outs ~f:ser_stack_type in
     (FuncT (inp_ts, out_ts))
 
+(* empties capture_tps of clos *)
+let rec norm_tp (t : stack_type) : stack_type = match t with
+| I32 -> I32
+| Clo ct -> Clo { capture_tps = []; inp = norm_tp ct.inp; ret = norm_tp ct.ret }
+
+let norm_clo (t : clo_type) : clo_type =
+    let Clo ct = norm_tp (Clo t) in ct
+
 let gen_rectypes () : WT.rec_type list =
     let rec loop (idx : int) : WT.rec_type list =
     if idx = List.length (!type_decls) then [] else
@@ -61,7 +69,7 @@ let gen_rectypes () : WT.rec_type list =
         let rec_t = WT.(RecT [(SubT (Final, [], dt))]) in
         rec_t :: loop (idx + 1)
     | CloType c ->
-        let self_call_ftp = { inps = [(Clo { c with capture_tps = [] }); c.inp]; outs = [c.ret] } in
+        let self_call_ftp = { inps = [norm_tp (Clo c); c.inp]; outs = [c.ret] } in
         let self_call_tp = FuncType self_call_ftp in
         let self_call_def = WT.DefFuncT (ser_func_type self_call_ftp) in
         let self_call_idx = typ_idx self_call_tp in
@@ -75,7 +83,7 @@ let gen_rectypes () : WT.rec_type list =
                 let rec_t = WT.(RecT [SubT (NoFinal, [], struct_def); SubT (Final, [], self_call_def)]) in
                 rec_t :: loop (idx + 2)
         | _ ->
-            let super_ct = { c with capture_tps = [] } in
+            let super_ct = norm_clo c in
             let super_idx = typ_idx (CloType super_ct) in
             let super = WT.[VarHT (StatX (Int32.of_int_exn super_idx))] in
             let rec_t = WT.(RecT [SubT (NoFinal, super, struct_def)]) in

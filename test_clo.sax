@@ -40,7 +40,7 @@ proc tst1 (d : nat) =
         call lambda f
     cut a : nat
         call one a
-    read f (a, d)
+    read => f (a, d)
 
 proc addn (d : nat => nat) (n : int) = write d {
     | (x, d_1) => call add d_1 x n
@@ -53,7 +53,14 @@ proc tst2 (d : nat) =
         call addn f t
     cut a : nat
         call one a
-    read f (a, d)
+    read => f (a, d)
+
+proc add_curry (d : nat => (nat => nat)) =
+    write d {
+    | (x, d_1) => write d_1 {
+                  | (y, d_2) => call add d_2 x y
+                  }
+    }
 
 proc main (d : nat) =
     cut x : nat
@@ -61,3 +68,10 @@ proc main (d : nat) =
     cut y : nat
         call tst2 y
     call add d x y
+    /*
+    cut add_lambda : nat => nat => nat
+        call add_curry add_lambda
+    cut appx : nat => nat
+        read => add_lambda (x, appx)
+    read => appx (y, d)
+    */
