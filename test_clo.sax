@@ -67,11 +67,8 @@ proc main (d : nat) =
         call tst1 x
     cut y : nat
         call tst2 y
-    call add d x y
-    /*
     cut add_lambda : nat => nat => nat
         call add_curry add_lambda
     cut appx : nat => nat
         read => add_lambda (x, appx)
     read => appx (y, d)
-    */

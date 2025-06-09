@@ -409,9 +409,16 @@ let compiler (env : compile_env) =
                 end
          | (InvokeClo (arg, dst, clo_tp_idx)) :: xs ->
                  let f1 :: f2 :: a :: rest = st.stack in
+                 let clo_tp = List.nth_exn (!T.type_decls) clo_tp_idx in
+                 let ret_stackval =
+                     let CloType ct = clo_tp in
+                     match ct.ret with
+                     | I32 -> Addr dst
+                     | Clo _ -> GcRef dst
+                 in
                  let struct_get = W.StructGet (to_wasm_imm clo_tp_idx, to_wasm_imm 0, None) in
                  let call = W.CallRef (to_wasm_imm (clo_tp_idx + 1)) in
-                 struct_get :: call :: asm xs { st with stack = (Addr dst) :: rest } wf
+                 struct_get :: call :: asm xs { st with stack = ret_stackval :: rest } wf
          | (Switch (s, need_inj, ls)) :: xs ->
                  (* TODO: cleanup, optimize to bulk load *)
                  let (dealloc_instrs, st) = match st.stack with

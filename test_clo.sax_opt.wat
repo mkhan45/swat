@@ -6,6 +6,10 @@
  (type $8 (sub $5 (struct (field (ref $6)) (field i32))))
  (type $3 (func (result i32)))
  (type $0 (func (param i32 i32) (result i32)))
+ (rec
+  (type $10 (sub (struct (field (ref $11)))))
+  (type $11 (func (param (ref $10) i32) (result (ref $5))))
+ )
  (type $1 (func (param i32)))
  (type $2 (func (param i32 i32)))
  (type $4 (func (param i32) (result i32)))
@@ -14,7 +18,7 @@
  (import "sax" "free" (func $1 (type $1) (param i32)))
  (import "sax" "print_val" (func $2 (type $2) (param i32 i32)))
  (data $0 "{\"int\":\"int\",\"nat\":{\"\'zero\":null,\"\'succ\":\"nat\"}}")
- (elem declare func $15 $16)
+ (elem declare func $15 $16 $17 $18)
  (export "serialize_types" (func $3))
  (export "main" (func $14))
  (func $3 (type $3) (result i32)
@@ -74,28 +78,47 @@
   )
  )
  (func $14 (type $3) (result i32)
-  (local $0 (ref $8))
-  (call $2
-   (call $5
-    (call $15
-     (struct.new $5
-      (ref.func $15)
-     )
-     (call $6)
+  (local $0 i32)
+  (local $1 (ref $8))
+  (local $2 i32)
+  (local $3 (ref $5))
+  (local.set $0
+   (call $15
+    (struct.new $5
+     (ref.func $15)
     )
-    (call_ref $6
-     (local.tee $0
-      (struct.new $8
-       (ref.func $16)
-       (call $7
-        (call $6)
-       )
+    (call $6)
+   )
+  )
+  (local.set $2
+   (call_ref $6
+    (local.tee $1
+     (struct.new $8
+      (ref.func $16)
+      (call $7
+       (call $6)
       )
      )
-     (call $6)
-     (struct.get $8 0
+    )
+    (call $6)
+    (struct.get $8 0
+     (local.get $1)
+    )
+   )
+  )
+  (call $2
+   (call_ref $6
+    (local.tee $3
+     (call $18
+      (struct.new $10
+       (ref.func $18)
+      )
       (local.get $0)
      )
+    )
+    (local.get $2)
+    (struct.get $5 0
+     (local.get $3)
     )
    )
    (i32.const 1)
@@ -111,7 +134,9 @@
  (func $15 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
   (return_call $5
    (local.get $1)
-   (call $6)
+   (block (result i32)
+    (call $6)
+   )
   )
  )
  (func $16 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
@@ -121,6 +146,22 @@
      (local.get $0)
     )
    )
+   (local.get $1)
+  )
+ )
+ (func $17 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
+  (return_call $5
+   (local.get $1)
+   (struct.get $8 1
+    (ref.cast (ref $8)
+     (local.get $0)
+    )
+   )
+  )
+ )
+ (func $18 (type $11) (param $0 (ref $10)) (param $1 i32) (result (ref $5))
+  (struct.new $8
+   (ref.func $17)
    (local.get $1)
   )
  )
