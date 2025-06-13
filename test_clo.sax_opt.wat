@@ -134,9 +134,7 @@
  (func $15 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
   (return_call $5
    (local.get $1)
-   (block (result i32)
-    (call $6)
-   )
+   (call $6)
   )
  )
  (func $16 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
