@@ -1,3 +1,11 @@
+Adjointness issue:
+
+I had it backwards before; linear types should be allowed to reference unrestricted types
+but not the other way around. This is the opposite of unmanaged memory and GC, where GC (unrestricted)
+should be able to reference the unmanaged heap (linear). The workaround is to make a global object
+array of unrestricted values referenced by linear ones. We can store an i32 index into the array in
+the linear value, and then remove it from the array when it is deallocated.
+
 # General structure
 
 dest is the top of the stack
