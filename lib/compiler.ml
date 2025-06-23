@@ -81,7 +81,7 @@ type fn_idx_map = {
 }
 
 let fn_idxs : fn_idx_map = {
-    alloc = 0; free = 1; print_val = 2;
+    alloc = 1; free = 2; print_val = 0;
 }
 
 type var_env = (string, S.tp, String.comparator_witness) Map.t
@@ -403,9 +403,9 @@ let compiler (env : compile_env) =
                 in
                 begin if (String.equal d wf.ret_dest) && not (String.equal "main" wf.name) then
                     if List.length xs > 0 then raise TypeError else
-                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))]
+                    [W.ReturnCall (to_wasm_imm (idx + 1 + 1 + fn_idxs.free))]
                 else
-                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.print_val))) :: asm xs { st with stack } wf
+                    (W.Call (to_wasm_imm (idx + 1 + 1 + fn_idxs.free))) :: asm xs { st with stack } wf
                 end
          | (InvokeClo (arg, dst, clo_tp_idx)) :: xs ->
                  let f1 :: f2 :: a :: rest = st.stack in
@@ -599,7 +599,7 @@ let compiler (env : compile_env) =
                                           3. put ref on stack *)
                                        let fn_idx = 
                                            List.length !(env.clo_funcs) + 
-                                           List.length (env.proc_ls) + fn_idxs.print_val + 2 
+                                           List.length (env.proc_ls) + fn_idxs.free + 2 
                                        in
                                        let fn_idx = match otp with
                                        | Arrow (_, _) -> fn_idx + 1

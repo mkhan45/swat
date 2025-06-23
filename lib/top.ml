@@ -39,32 +39,33 @@ let mod_imports = [
     };
     W.{
         module_name = Wasm.Utf8.decode "sax";
-        item_name = Wasm.Utf8.decode "alloc";
-        idesc = W.FuncImport (Compiler.to_wasm_imm T.pair_to_i32) |> Compiler.to_region (* alloc *)
-    };
-    W.{
-        module_name = Wasm.Utf8.decode "sax";
-        item_name = Wasm.Utf8.decode "free";
-        idesc = W.FuncImport (Compiler.to_wasm_imm T.i32_to_unit) |> Compiler.to_region (* free *)
-    };
-    W.{
-        module_name = Wasm.Utf8.decode "sax";
         item_name = Wasm.Utf8.decode "print_val";
         idesc = W.FuncImport (Compiler.to_wasm_imm T.pair_to_unit) |> Compiler.to_region (* print *)
     }
 ]
 
-let mk_mod funcs datas main_idx = W.{
-    W.empty_module with 
-    types = T.gen_rectypes () |> List.map ~f:Compiler.to_region;
-    funcs = funcs |> List.map ~f:Compiler.to_region;
-    imports = mod_imports |> List.map ~f:Compiler.to_region;
-    exports = [
-        { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm (Compiler.fn_idxs.print_val + 1)) |> Compiler.to_region} |> Compiler.to_region;
-        { name = Wasm.Utf8.decode "main"; edesc = FuncExport (Compiler.to_wasm_imm (main_idx + Compiler.fn_idxs.print_val + 2)) |> Compiler.to_region } |> Compiler.to_region;
-    ];
-    datas;
-}
+let mk_mod funcs datas main_idx = 
+    (* could consider using ppx blob *)
+    (* not sure what script_var is *)
+    let runtime_mod =
+        let (_script_var, runtime_mod_def) = Wasm.Parse.Module.parse_file "./lib/runtime.wat" in
+        let Wasm.Script.Textual (m, _custom_sections) = runtime_mod_def.it in
+        m.it
+    in
+    let [fl_head] = runtime_mod.globals in
+    let [alloc; free] = runtime_mod.funcs in
+    W.{
+        W.empty_module with 
+        types = T.gen_rectypes () |> List.map ~f:Compiler.to_region;
+        funcs = alloc :: free :: (funcs |> List.map ~f:Compiler.to_region);
+        imports = mod_imports |> List.map ~f:Compiler.to_region;
+        globals = [fl_head];
+        exports = [
+            { name = Wasm.Utf8.decode "serialize_types"; edesc = FuncExport (Compiler.to_wasm_imm (Compiler.fn_idxs.free + 1)) |> Compiler.to_region} |> Compiler.to_region;
+            { name = Wasm.Utf8.decode "main"; edesc = FuncExport (Compiler.to_wasm_imm (main_idx + Compiler.fn_idxs.free + 2)) |> Compiler.to_region } |> Compiler.to_region;
+        ];
+        datas;
+    }
 
 let int_tp = ("int", A.TpName "int")
 
