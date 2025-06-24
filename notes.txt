@@ -4,6 +4,13 @@
     - let freelist point directly to next node, not relatively
 - reuse optimization
     - and avoid extra writes?
+    - In first compilation pass, track last frees. Need to
+       track in environment whether or not a variable is reused
+       so that we can choose not to free a variable and we can
+       also record which address to reuse.
+    - In second compilation pass, a check on initialization if
+      we should emit a reuse. On read we can check if the variable
+      is reused. If it is reused don't emit a free.
 - lazy return boxing
 - generate print functions per type
 
