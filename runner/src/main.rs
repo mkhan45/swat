@@ -113,7 +113,7 @@ fn main() {
             unsafe {
                 let sz = mem.data_size(&store) / 4;
                 for i in 0..sz {
-                    *((mem_ptr as *mut i32).add(i)) = 8;
+                    *((mem_ptr as *mut i32).add(i)) = 0;
                 }
             }
 

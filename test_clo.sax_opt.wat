@@ -23,10 +23,22 @@
  (func $1 (type $0) (param $0 i32) (param $1 i32) (result i32)
   (local $2 i32)
   (local $3 i32)
-  (local.set $3
-   (i32.load
-    (local.tee $2
-     (global.get $0)
+  (if
+   (i32.eqz
+    (local.tee $3
+     (i32.load
+      (local.tee $2
+       (global.get $0)
+      )
+     )
+    )
+   )
+   (then
+    (local.set $3
+     (i32.add
+      (local.get $2)
+      (i32.const 8)
+     )
     )
    )
   )
@@ -42,20 +54,14 @@
    (local.get $1)
   )
   (global.set $0
-   (i32.add
-    (local.get $2)
-    (local.get $3)
-   )
+   (local.get $3)
   )
   (local.get $2)
  )
  (func $2 (type $1) (param $0 i32)
   (i32.store
    (local.get $0)
-   (i32.sub
-    (global.get $0)
-    (local.get $0)
-   )
+   (global.get $0)
   )
   (global.set $0
    (local.get $0)
@@ -174,7 +180,9 @@
  (func $15 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
   (return_call $5
    (local.get $1)
-   (call $6)
+   (block (result i32)
+    (call $6)
+   )
   )
  )
  (func $16 (type $6) (param $0 (ref $5)) (param $1 i32) (result i32)
