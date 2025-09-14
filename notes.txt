@@ -1,7 +1,5 @@
 # TODO 5
 
-- make allocator resize when needed
-    - let freelist point directly to next node, not relatively
 - reuse optimization
     - and avoid extra writes?
     - In first compilation pass, track last frees. Need to
@@ -12,7 +10,14 @@
       we should emit a reuse. On read we can check if the variable
       is reused. If it is reused don't emit a free.
 - lazy return boxing
-- generate print functions per type
+- runtime independent print
+    - could generate print functions per type
+    - need to store tag strings in some memory, and ensure it is
+      not used by allocator
+    - wasi print operations are super primitive, so we would like to
+      somehow generate from Rust (Virgil? C?)
+        - the best way to do this is probably to write a function which
+          accepts a raw byte pointer and length, maybe no_std etc would help
 
 -----------------
 

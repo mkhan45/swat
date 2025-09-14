@@ -42,7 +42,7 @@ extensibility for supporting adjoint Sax through WASM GC.
 
 The variant of Sax implemented by this compiler is a modified version of the core linear, positive
 fragment introduced in Lab 1, with two additions. First, it supports 32-bit signed integers,
-leveraging WASM's i32 type. It also has limited, proof-of-concept support for closures. Both of 
+leveraging WASM's i32 type. It also has proof-of-concept support for closures. Both of 
 these types are always unrestricted, supporting all structural rules. Units are also unrestricted.
 
 The performance of a compiler targeting WASM largely depends on the source language. Manually memory-managed
@@ -153,18 +153,11 @@ significantly modifying the approach.
 - Subtyping probably has bugs
     - the compiler assumes that all instances of a type have the same layout,
       but does not enforce this on downcasts
-- Memory does not grow
-    - the allocator does not ever grow the memory, so it is limited to one WASM page of 64 KiB.
 - Shadowing is likely buggy
-- Procedures can only have up to two arguments (excluding dest)
-    - because WASM module types must be predefined, we need to generate them after
-      scanning Sax procs
-- Closures are very limited
-    - This is mostly because of WASM type generation and subtyping; the core mechanism
-      should work arbitrarily.
 - Files which do not use all the required imports (alloc, free, print) may not compile
     - `wasm-opt`'s dead code removal might mess up the imports expected by the runner, despite my efforts
     - The best way to avoid this is to keep the main proc a small call to another proc.
+- All closures are garbage collected
 - Static checking is a bit limited
 
 = Implementation
@@ -213,13 +206,6 @@ the first value of a freed cell is the offset to the next cell. There are two fu
   freelist pointer by the offset previously written to the cell, and returns the address allocated.
 - `free(addr: i32)` writes the current freelist head to the front of the cell, and sets the new freelist
    pointer to `addr`.
-
-I made some strange choices in this design. First, I opted to start the freelist with every allocated
-cell by writing an offset of 8 to every cell on initialization. This saves storing an additional pointer
-to space that has yet to be allocated or freed, but is probably slower when memory is resized. Additionally,
-I wrote the allocator in Rust, embedding it into the runtime, instead of using WASM's built-in memory instructions.
-This was just done to save myself from writing WASM by hand. It makes the generated code less portable, but
-is likely a little bit faster, since the Rust code is not subject to the same safety checks that WASM would have.
 
 == Cuts and Locals
 
@@ -341,7 +327,11 @@ $
 Closures are garbage collected. There are some considerations to make about adjoint Sax,
 since all closures are currently unrestricted. GC references can not be stored on the heap,
 so linear data cannot reference unrestricted closures, but we can still store heap references
-in the GC. This aligns with adjoint Sax's mode preorder restriction.
+in the GC. This inverts adjoint Sax's mode preorder restriction, where we can reference unrestricted
+values from linear ones but not vice-versa. To enable substructural closures capturing unrestricted
+values, we could store an index into a garbage collected global array with references to unrestricted
+values, but this is not yet implemented.
+
 
 Closure structs use the following type definitions:
 ```
@@ -351,11 +341,8 @@ Closure structs use the following type definitions:
   )
 ```
 Essentially, a closure struct contains a pointer to a function which, when passed the struct and an argument,
-returns an address. Unfortunately, the limitations on closures stem from not yet generating more types like this;
-closures using these types cannot return other closures, or have more than one capture. To solve this, we
-should generate closure types which return references as well. Making use of WASM GC's structural subtyping,
-all struct types which contain a funcref in the first field will be a subtype of the core closure struct,
-and by upcasting we can recycle most of the same code.
+returns an address. Making use of WASM GC's structural subtyping, all struct types which contain a funcref in 
+the first field will be a subtype of the core closure struct, and by upcasting we can recycle most of the same code.
 
 Writing a closure generates a top level definition, finds all closed variables, and allocates
 a struct with a function pointer and each enclosed address. To invoke it, we must fetch the
@@ -564,9 +551,9 @@ through Wasmtime. Since Python's native list type is a vector instead of a linke
     table(columns: 5,
         [],         [swat], [Python], [OCaml], [OCaml (opt)],
 
-        [listrev],  [ 238], [   712], [  125], [ 24],
+        [listrev],  [ 70], [   712], [  125], [ 24],
         [ack],      [ 363], [  6900], [  934], [165],
-        [isort],    [ 204], [   492], [  247], [ 25],
+        [isort],    [ 105], [   492], [  247], [ 25],
     ),
     caption: "Benchmark results, in milliseconds",
     kind: "table",
@@ -663,10 +650,9 @@ Reads always read two i32s at once. It might be more efficient to reduce it to a
 
 === Support for other runtimes
 
-The allocator could be rewritten either in WASM or using the API of a different runtime.
 Printing could be done through WASI, or again using a different runtime API. The most
 compelling runtime to support would be browsers; it should be fairly simple to rewrite
-the allocator and printing in JavaScript using Web APIs.
+printing in JavaScript using Web APIs.
 
 #pagebreak()
 #bibliography("main.bib")
